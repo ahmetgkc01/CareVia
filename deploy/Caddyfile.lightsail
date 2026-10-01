@@ -1,0 +1,17 @@
+{$APP_DOMAIN:localhost} {
+    encode zstd gzip
+    basic_auth {
+        {$APP_AUTH_USER} {$APP_AUTH_PASSWORD_HASH}
+    }
+    reverse_proxy web:8501
+}
+
+{$API_DOMAIN:api.localhost} {
+    encode zstd gzip
+    reverse_proxy api:8000
+}
+
+carevia.18-156-187-209.sslip.io {
+    encode zstd gzip
+    reverse_proxy carevia-frontend:80
+}
