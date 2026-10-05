@@ -9,6 +9,10 @@ class LoginSerializer(serializers.Serializer):
     password = serializers.CharField(trim_whitespace=False, write_only=True)
 
 
+class DetailSerializer(serializers.Serializer):
+    detail = serializers.CharField(read_only=True)
+
+
 class CurrentUserSerializer(serializers.Serializer):
     id = serializers.IntegerField(read_only=True)
     username = serializers.CharField(read_only=True)
@@ -17,7 +21,7 @@ class CurrentUserSerializer(serializers.Serializer):
     last_name = serializers.CharField(read_only=True)
     groups = serializers.SerializerMethodField()
 
-    def get_groups(self, user):
+    def get_groups(self, user) -> list[str]:
         return list(user.groups.order_by("name").values_list("name", flat=True))
 
 

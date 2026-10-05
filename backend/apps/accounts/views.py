@@ -1,6 +1,7 @@
 from django.contrib.auth import authenticate, login, logout
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
+from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -11,7 +12,12 @@ from apps.auditlog.services import record_event
 
 from .models import User
 from .permissions import UserManagementPermission
-from .serializers import CurrentUserSerializer, LoginSerializer, UserManagementSerializer
+from .serializers import (
+    CurrentUserSerializer,
+    DetailSerializer,
+    LoginSerializer,
+    UserManagementSerializer,
+)
 from .throttles import LoginRateThrottle
 
 
@@ -20,6 +26,7 @@ class CsrfCookieView(APIView):
     authentication_classes = ()
     permission_classes = (AllowAny,)
 
+    @extend_schema(responses={200: DetailSerializer})
     def get(self, request):
         return Response({"detail": "CSRF cookie set."})
 
@@ -30,6 +37,7 @@ class LoginView(APIView):
     permission_classes = (AllowAny,)
     throttle_classes = (LoginRateThrottle,)
 
+    @extend_schema(request=LoginSerializer, responses={200: CurrentUserSerializer})
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -57,6 +65,7 @@ class LoginView(APIView):
 class LogoutView(APIView):
     permission_classes = (IsAuthenticated,)
 
+    @extend_schema(request=None, responses={204: None})
     def post(self, request):
         record_event(
             request,
@@ -71,6 +80,7 @@ class LogoutView(APIView):
 class CurrentUserView(APIView):
     permission_classes = (IsAuthenticated,)
 
+    @extend_schema(responses={200: CurrentUserSerializer})
     def get(self, request):
         return Response(CurrentUserSerializer(request.user).data)
 

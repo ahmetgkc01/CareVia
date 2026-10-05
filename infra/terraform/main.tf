@@ -152,3 +152,56 @@ resource "aws_budgets_budget" "carevia_monthly" {
     subscriber_email_addresses = [var.budget_email]
   }
 }
+
+resource "aws_sns_topic" "carevia_alerts" {
+  name = "${local.name}-alerts"
+  tags = local.common_tags
+}
+
+resource "aws_sns_topic_subscription" "carevia_alert_email" {
+  topic_arn = aws_sns_topic.carevia_alerts.arn
+  protocol  = "email"
+  endpoint  = var.alert_email
+}
+
+resource "aws_cloudwatch_metric_alarm" "database_high_cpu" {
+  alarm_name          = "${local.name}-database-high-cpu"
+  alarm_description   = "Carevia RDS CPU has remained above 80 percent."
+  namespace           = "AWS/RDS"
+  metric_name         = "CPUUtilization"
+  statistic           = "Average"
+  period              = 300
+  evaluation_periods  = 2
+  threshold           = 80
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "breaching"
+  alarm_actions       = [aws_sns_topic.carevia_alerts.arn]
+  ok_actions          = [aws_sns_topic.carevia_alerts.arn]
+
+  dimensions = {
+    DBInstanceIdentifier = aws_db_instance.carevia.identifier
+  }
+
+  tags = local.common_tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "database_low_storage" {
+  alarm_name          = "${local.name}-database-low-storage"
+  alarm_description   = "Carevia RDS has less than 5 GiB of free storage."
+  namespace           = "AWS/RDS"
+  metric_name         = "FreeStorageSpace"
+  statistic           = "Average"
+  period              = 300
+  evaluation_periods  = 2
+  threshold           = 5368709120
+  comparison_operator = "LessThanThreshold"
+  treat_missing_data  = "breaching"
+  alarm_actions       = [aws_sns_topic.carevia_alerts.arn]
+  ok_actions          = [aws_sns_topic.carevia_alerts.arn]
+
+  dimensions = {
+    DBInstanceIdentifier = aws_db_instance.carevia.identifier
+  }
+
+  tags = local.common_tags
+}

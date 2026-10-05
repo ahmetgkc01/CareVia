@@ -11,7 +11,7 @@
     reverse_proxy api:8000
 }
 
-carevia.18-156-187-209.sslip.io {
+{$CAREVIA_DOMAIN:carevia.localhost} {
     encode zstd gzip
     reverse_proxy carevia-frontend:80
 }

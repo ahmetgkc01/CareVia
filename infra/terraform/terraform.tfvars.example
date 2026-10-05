@@ -1,6 +1,7 @@
 aws_region         = "eu-central-1"
 monthly_budget_usd = 20
 budget_email       = "your-email@example.com"
+alert_email        = "operations@example.com"
 
 # Add only trusted public IP addresses. Never use 0.0.0.0/0.
 allowed_postgres_cidrs = [
@@ -16,4 +17,3 @@ backup_retention_days        = 7
 
 db_instance_class       = "db.t4g.micro"
 db_allocated_storage_gb = 20
-backup_retention_days   = 1

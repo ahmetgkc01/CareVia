@@ -15,6 +15,11 @@ variable "budget_email" {
   type        = string
 }
 
+variable "alert_email" {
+  description = "Email address that receives operational CloudWatch alarms."
+  type        = string
+}
+
 variable "environment" {
   description = "Deployment environment name."
   type        = string

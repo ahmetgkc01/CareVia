@@ -39,3 +39,8 @@ output "database_security_group_id" {
   description = "Security group controlling PostgreSQL access."
   value       = aws_security_group.database.id
 }
+
+output "alerts_topic_arn" {
+  description = "SNS topic used by Carevia operational alarms."
+  value       = aws_sns_topic.carevia_alerts.arn
+}

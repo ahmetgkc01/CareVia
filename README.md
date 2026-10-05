@@ -122,5 +122,11 @@ npm run test:run
 npm run build
 ```
 
+Tarayici tabanli Admin ve Patient rol kontrolleri icin once gelistirme veritabaninda
+`python manage.py seed_e2e --password "yerel-e2e-parolasi"`, ardindan frontend klasorunde
+`CAREVIA_E2E_PASSWORD="yerel-e2e-parolasi" npm run test:e2e` calistirilabilir. Bu komut
+`DEBUG=false` ortaminda devre disidir. Dagitim, yedekleme, geri yukleme ve izleme adimlari
+[`docs/operations.md`](docs/operations.md) dosyasinda belgelenmistir.
+
 Bu kontroller `.github/workflows/ci.yml` üzerinden her push ve pull request'te de çalışır.
 

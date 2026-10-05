@@ -36,4 +36,28 @@ describe("apiRequest", () => {
       expect.objectContaining({ status: 403, message: "Forbidden" }),
     );
   });
+
+  it("adds the CSRF token to mutating requests", async () => {
+    Object.defineProperty(document, "cookie", {
+      configurable: true,
+      value: "csrftoken=test-token",
+    });
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(null, { status: 204 }),
+    );
+
+    await expect(apiRequest<void>("/api/session/logout/", { method: "POST" })).resolves.toBeUndefined();
+    const request = fetchMock.mock.calls[0][1];
+    expect(new Headers(request?.headers).get("X-CSRFToken")).toBe("test-token");
+  });
+
+  it("uses a generic error when the response is not JSON", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("Gateway failure", { status: 502 }),
+    );
+
+    await expect(apiRequest("/api/private/")).rejects.toEqual(
+      expect.objectContaining({ status: 502, message: "Request failed" }),
+    );
+  });
 });

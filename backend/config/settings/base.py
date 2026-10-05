@@ -125,6 +125,7 @@ REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_THROTTLE_RATES": {
         "login": os.getenv("LOGIN_THROTTLE_RATE", "5/min"),
+        "assistant": os.getenv("ASSISTANT_THROTTLE_RATE", "20/hour"),
     },
 }
 

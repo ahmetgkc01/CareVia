@@ -23,26 +23,48 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
+  CircularProgress,
   Stack,
   Toolbar,
   Typography,
 } from "@mui/material";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, Navigate, Outlet, Route, Routes, useNavigate } from "react-router-dom";
 
 import { authApi } from "../features/auth/api";
-import { AssistantPage } from "../features/assistant/AssistantPage";
-import { LoginPage } from "../features/auth/LoginPage";
 import { ProtectedRoute } from "../features/auth/ProtectedRoute";
-import { AppointmentPage } from "../features/appointments/AppointmentPage";
 import { dashboardApi } from "../features/dashboard/api";
-import { ClinicianPage } from "../features/clinicians/ClinicianPage";
-import { PatientPage } from "../features/patients/PatientPage";
-import { UserPage } from "../features/users/UserPage";
+
+const AssistantPage = lazy(() =>
+  import("../features/assistant/AssistantPage").then((module) => ({ default: module.AssistantPage })),
+);
+const LoginPage = lazy(() =>
+  import("../features/auth/LoginPage").then((module) => ({ default: module.LoginPage })),
+);
+const AppointmentPage = lazy(() =>
+  import("../features/appointments/AppointmentPage").then((module) => ({ default: module.AppointmentPage })),
+);
+const ClinicianPage = lazy(() =>
+  import("../features/clinicians/ClinicianPage").then((module) => ({ default: module.ClinicianPage })),
+);
+const PatientPage = lazy(() =>
+  import("../features/patients/PatientPage").then((module) => ({ default: module.PatientPage })),
+);
+const UserPage = lazy(() =>
+  import("../features/users/UserPage").then((module) => ({ default: module.UserPage })),
+);
 
 const drawerWidth = 240;
+
+function PageLoader() {
+  return (
+    <Box minHeight="50vh" display="grid" sx={{ placeItems: "center" }}>
+      <CircularProgress />
+    </Box>
+  );
+}
 
 function DashboardPage() {
   const { t } = useTranslation();
@@ -176,20 +198,22 @@ function AppShell() {
 
 export function App() {
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route element={<ProtectedRoute />}>
-        <Route element={<AppShell />}>
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/patients" element={<PatientPage />} />
-          <Route path="/clinicians" element={<ClinicianPage />} />
-          <Route path="/appointments" element={<AppointmentPage />} />
-          <Route path="/assistant" element={<AssistantPage />} />
-          <Route path="/users" element={<UserPage />} />
+    <Suspense fallback={<PageLoader />}>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route element={<ProtectedRoute />}>
+          <Route element={<AppShell />}>
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/patients" element={<PatientPage />} />
+            <Route path="/clinicians" element={<ClinicianPage />} />
+            <Route path="/appointments" element={<AppointmentPage />} />
+            <Route path="/assistant" element={<AssistantPage />} />
+            <Route path="/users" element={<UserPage />} />
+          </Route>
         </Route>
-      </Route>
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
-    </Routes>
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
+    </Suspense>
   );
 }
 

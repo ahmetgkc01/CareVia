@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 import pytest
 from django.contrib.auth.models import Group
+from django.core.cache import cache
 from django.test import override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -13,6 +14,7 @@ from apps.appointments.models import Appointment
 from apps.assistant.embeddings import KnowledgeMatch
 from apps.assistant.models import AssistantMessage, KnowledgeChunk
 from apps.assistant.services import create_reply, provider_reply
+from apps.assistant.throttles import AssistantRateThrottle
 from apps.clinicians.models import Clinician
 from apps.patients.models import Patient
 
@@ -174,6 +176,21 @@ def test_non_doctor_staff_cannot_use_first_release(assistant_records):
     response = client.get("/api/assistant/messages/")
 
     assert response.status_code == 403
+
+
+@pytest.mark.django_db
+@patch.dict(AssistantRateThrottle.THROTTLE_RATES, {"assistant": "1/hour"})
+def test_assistant_message_creation_is_rate_limited(assistant_records):
+    _, patient_user, _, _ = assistant_records
+    cache.clear()
+    client = APIClient()
+    client.force_authenticate(patient_user)
+    payload = {"message": "RandevularÄ±m", "language": "tr"}
+
+    assert client.post("/api/assistant/messages/", payload, format="json").status_code == 201
+    assert client.post("/api/assistant/messages/", payload, format="json").status_code == 429
+    assert client.get("/api/assistant/messages/").status_code == 200
+    cache.clear()
 
 
 class FakeResponse:

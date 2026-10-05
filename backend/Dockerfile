@@ -12,7 +12,9 @@ COPY requirements /app/requirements
 RUN pip install --no-cache-dir -r /app/requirements/prod.txt
 
 COPY . /app
-RUN python manage.py collectstatic --noinput && chown -R carevia:carevia /app
+RUN DJANGO_SECRET_KEY=build-only-secret-that-is-longer-than-fifty-characters-123456789 \
+    DJANGO_ALLOWED_HOSTS=localhost \
+    python manage.py collectstatic --noinput && chown -R carevia:carevia /app
 
 USER carevia
 EXPOSE 8000
