@@ -16,8 +16,9 @@ variable "budget_email" {
 }
 
 variable "alert_email" {
-  description = "Email address that receives operational CloudWatch alarms."
+  description = "Email address that receives operational CloudWatch alarms. Defaults to budget_email when empty."
   type        = string
+  default     = ""
 }
 
 variable "environment" {

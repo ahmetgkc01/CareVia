@@ -161,7 +161,7 @@ resource "aws_sns_topic" "carevia_alerts" {
 resource "aws_sns_topic_subscription" "carevia_alert_email" {
   topic_arn = aws_sns_topic.carevia_alerts.arn
   protocol  = "email"
-  endpoint  = var.alert_email
+  endpoint  = var.alert_email != "" ? var.alert_email : var.budget_email
 }
 
 resource "aws_cloudwatch_metric_alarm" "database_high_cpu" {
