@@ -10,32 +10,26 @@ from apps.clinicians.models import Clinician
 from apps.patients.models import Patient
 
 FIRST_NAMES = (
-    "Ayşe", "Mehmet", "Elif", "Deniz", "Zeynep", "Mert", "Selin", "Can", "Derya", "Emre",
-    "Emma", "Liam", "Sofia", "Noah", "Mia", "Lucas", "Olivia", "Daniel", "Amelia", "Leo",
+    "Ayşe", "Mehmet", "Elif", "Deniz", "Zeynep", "Mert", "Selin", "Can",
+    "Derya", "Emre", "Ece", "Burak", "İrem", "Kerem", "Aslı", "Onur",
+    "Naz", "Barış", "Emma", "Liam", "Sofia", "Noah", "Mia", "Lucas",
+    "Olivia", "Daniel", "Amelia", "Leo", "Ava", "Ethan", "Chloe", "Mateo",
 )
 
 LAST_NAMES = (
-    "Demir",
-    "Kaya",
-    "Yılmaz",
-    "Aydın",
-    "Şahin",
-    "Çelik",
-    "Arslan",
-    "Koç",
-    "Öztürk",
-    "Aksoy",
-    "Wilson",
-    "Anderson",
-    "Martin",
-    "Müller",
-    "Rossi",
-    "Silva",
-    "Taylor",
-    "Brown",
-    "Garcia",
-    "Novak",
+    "Demir", "Kaya", "Yılmaz", "Aydın", "Şahin", "Çelik", "Arslan", "Koç",
+    "Öztürk", "Aksoy", "Korkmaz", "Yıldız", "Polat", "Kurt", "Özdemir", "Acar",
+    "Güneş", "Bozkurt", "Wilson", "Anderson", "Martin", "Müller", "Rossi", "Silva",
+    "Taylor", "Brown", "Garcia", "Novak", "Smith", "Johnson", "Schmidt", "Pereira",
 )
+
+ROLE_NAME_OFFSETS = {
+    "patient": 0,
+    "doctor": 300,
+    "nurse": 400,
+    "secretary": 500,
+    "auditor": 600,
+}
 
 SPECIALTIES = (
     "Family Medicine", "Internal Medicine", "Cardiology", "Dermatology", "Neurology",
@@ -46,8 +40,13 @@ COUNTRIES = ("TR", "TR", "TR", "TR", "GB", "US", "DE", "FR", "IT", "BR")
 
 
 def generated_name(index: int, offset: int = 0) -> tuple[str, str]:
-    first_name = FIRST_NAMES[(index + offset) % len(FIRST_NAMES)]
-    last_name = LAST_NAMES[((index + offset) * 7) % len(LAST_NAMES)]
+    name_index = index + offset
+    first_name_index = name_index % len(FIRST_NAMES)
+    last_name_index = (
+        (name_index // len(FIRST_NAMES)) + (first_name_index * 7)
+    ) % len(LAST_NAMES)
+    first_name = FIRST_NAMES[first_name_index]
+    last_name = LAST_NAMES[last_name_index]
     return first_name, last_name
 
 
@@ -122,7 +121,7 @@ class Command(BaseCommand):
             count=options["secretaries"],
             group=groups["Secretary"],
             password=password,
-            name_offset=9,
+            name_offset=ROLE_NAME_OFFSETS["secretary"],
             reset_passwords=reset_passwords,
         )
         self.create_staff_users(
@@ -130,7 +129,7 @@ class Command(BaseCommand):
             count=options["auditors"],
             group=groups["Auditor"],
             password=password,
-            name_offset=14,
+            name_offset=ROLE_NAME_OFFSETS["auditor"],
             reset_passwords=reset_passwords,
         )
         self.create_appointments(
@@ -187,7 +186,7 @@ class Command(BaseCommand):
         clinicians = []
         role = "doctor" if profession == Clinician.Profession.DOCTOR else "nurse"
         for index in range(count):
-            first_name, last_name = generated_name(index, 3 if role == "doctor" else 11)
+            first_name, last_name = generated_name(index, ROLE_NAME_OFFSETS[role])
             username = role if index == 0 else f"{role}{index + 1:03d}"
             user = self.ensure_user(
                 username=username,
@@ -220,7 +219,7 @@ class Command(BaseCommand):
         patients = []
         genders = tuple(value for value, _ in Patient.Gender.choices)
         for index in range(count):
-            first_name, last_name = generated_name(index)
+            first_name, last_name = generated_name(index, ROLE_NAME_OFFSETS["patient"])
             username = "patient" if index == 0 else f"patient{index + 1:03d}"
             user = self.ensure_user(
                 username=username,
