@@ -29,8 +29,10 @@ export function AssistantPage() {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const bottomRef = useRef<HTMLDivElement>(null);
+  const patientSelectRef = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState("");
   const [patientId, setPatientId] = useState("");
+  const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
   const session = useQuery({ queryKey: ["session"], queryFn: authApi.me });
   const groups = session.data?.groups ?? [];
   const isDoctor = groups.includes("Doctor") || groups.includes("Admin");
@@ -47,10 +49,15 @@ export function AssistantPage() {
   });
   const sendMessage = useMutation({
     mutationFn: assistantApi.send,
-    onSuccess: async () => {
+    onSuccess: async (reply, input) => {
       setMessage("");
+      if (isDoctor && reply.safety_code === "patient_context_required") {
+        setPendingPrompt(input.message);
+        patientSelectRef.current?.focus();
+      }
       await queryClient.invalidateQueries({ queryKey: ["assistant-history"] });
     },
+    onError: (_error, input) => setMessage(input.message),
   });
   const clearHistory = useMutation({
     mutationFn: assistantApi.clear,
@@ -63,15 +70,39 @@ export function AssistantPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [history.data, sendMessage.isPending]);
 
+  const sendPrompt = (content: string, contextPatientId = patientId) => {
+    sendMessage.mutate({
+      message: content,
+      language: i18n.resolvedLanguage === "en" ? "en" : "tr",
+      ...(isDoctor && contextPatientId ? { patient_id: contextPatientId } : {}),
+    });
+  };
+
+  const queueOrSendPrompt = (prompt: string) => {
+    if (isDoctor && !patientId) {
+      setPendingPrompt(prompt);
+      setMessage("");
+      patientSelectRef.current?.focus();
+      return;
+    }
+    setPendingPrompt(null);
+    sendPrompt(prompt);
+  };
+
+  const selectPatient = (selectedPatientId: string) => {
+    setPatientId(selectedPatientId);
+    if (selectedPatientId && pendingPrompt && !sendMessage.isPending) {
+      const prompt = pendingPrompt;
+      setPendingPrompt(null);
+      sendPrompt(prompt, selectedPatientId);
+    }
+  };
+
   const submit = (event?: FormEvent) => {
     event?.preventDefault();
     const trimmed = message.trim();
     if (!trimmed || sendMessage.isPending) return;
-    sendMessage.mutate({
-      message: trimmed,
-      language: i18n.resolvedLanguage === "en" ? "en" : "tr",
-      ...(isDoctor && patientId ? { patient_id: patientId } : {}),
-    });
+    sendPrompt(trimmed);
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -117,7 +148,8 @@ export function AssistantPage() {
           size="small"
           label={t("assistantPatientContext")}
           value={patientId}
-          onChange={(event) => setPatientId(event.target.value)}
+          onChange={(event) => selectPatient(event.target.value)}
+          inputRef={patientSelectRef}
           sx={{ maxWidth: 420 }}
         >
           <MenuItem value="">{t("assistantNoPatientSelected")}</MenuItem>
@@ -127,6 +159,12 @@ export function AssistantPage() {
             </MenuItem>
           ))}
         </TextField>
+      )}
+
+      {isDoctor && pendingPrompt && (
+        <Alert severity="info">
+          {t("assistantPendingPatientPrompt", { prompt: pendingPrompt })}
+        </Alert>
       )}
 
       <Paper
@@ -149,15 +187,26 @@ export function AssistantPage() {
               </Box>
               <Stack direction="row" useFlexGap flexWrap="wrap" justifyContent="center" gap={1}>
                 {quickPrompts.map((prompt) => (
-                  <Chip key={prompt} label={prompt} onClick={() => setMessage(prompt)} clickable />
+                  <Chip
+                    key={prompt}
+                    label={prompt}
+                    onClick={() => queueOrSendPrompt(prompt)}
+                    disabled={sendMessage.isPending}
+                    clickable
+                  />
                 ))}
               </Stack>
             </Stack>
           )}
           <Stack spacing={2}>
-            {history.data?.map((item) => {
+            {history.data?.map((item, itemIndex) => {
               const isUser = item.role === "user";
               const isSafety = Boolean(item.safety_code);
+              const previousMessage = history.data[itemIndex - 1];
+              const retryPrompt = item.safety_code === "patient_context_required"
+                && previousMessage?.role === "user"
+                ? previousMessage.content
+                : null;
               return (
                 <Box key={item.id} display="flex" justifyContent={isUser ? "flex-end" : "flex-start"}>
                   <Box
@@ -173,6 +222,17 @@ export function AssistantPage() {
                     }}
                   >
                     <Typography sx={{ whiteSpace: "pre-wrap" }}>{item.content}</Typography>
+                    {retryPrompt && (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        disabled={sendMessage.isPending}
+                        onClick={() => queueOrSendPrompt(retryPrompt)}
+                        sx={{ mt: 1.5 }}
+                      >
+                        {t("assistantRetryPatientPrompt")}
+                      </Button>
+                    )}
                     {item.sources.length > 0 && (
                       <Stack spacing={0.5} mt={1.5} pt={1} borderTop={1} borderColor="divider">
                         {item.sources.map((source, index) => (
