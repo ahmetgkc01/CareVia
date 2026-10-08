@@ -5,6 +5,11 @@ from django.db import models
 
 
 class Patient(models.Model):
+    class AllergyStatus(models.TextChoices):
+        CONFIRMED = "confirmed", "Confirmed allergies"
+        NONE_KNOWN = "none_known", "No known allergies"
+        UNKNOWN = "unknown", "Unknown"
+
     class Gender(models.TextChoices):
         FEMALE = "female", "Female"
         MALE = "male", "Male"
@@ -35,7 +40,11 @@ class Patient(models.Model):
     )
     emergency_contact_name = models.CharField(max_length=200, blank=True)
     emergency_contact_phone = models.CharField(max_length=40, blank=True)
-    allergies = models.TextField(blank=True)
+    allergy_status = models.CharField(
+        max_length=20,
+        choices=AllergyStatus.choices,
+        default=AllergyStatus.UNKNOWN,
+    )
     clinical_notes = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -50,4 +59,33 @@ class Patient(models.Model):
 
     def __str__(self):
         return f"{self.first_name} {self.last_name}"
+
+
+class Allergy(models.Model):
+    class Severity(models.TextChoices):
+        UNKNOWN = "unknown", "Unknown"
+        MILD = "mild", "Mild"
+        MODERATE = "moderate", "Moderate"
+        SEVERE = "severe", "Severe"
+
+    patient = models.ForeignKey(
+        Patient,
+        on_delete=models.CASCADE,
+        related_name="allergies",
+    )
+    allergen = models.TextField()
+    reaction = models.CharField(max_length=500, blank=True)
+    severity = models.CharField(
+        max_length=20,
+        choices=Severity.choices,
+        default=Severity.UNKNOWN,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("allergen", "id")
+
+    def __str__(self):
+        return f"{self.patient}: {self.allergen}"
 

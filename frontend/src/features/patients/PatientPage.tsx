@@ -1,5 +1,12 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AddOutlined, EditOutlined, SearchOutlined, VisibilityOutlined } from "@mui/icons-material";
+import {
+  AddCircleOutline,
+  AddOutlined,
+  DeleteOutline,
+  EditOutlined,
+  SearchOutlined,
+  VisibilityOutlined,
+} from "@mui/icons-material";
 import {
   Alert,
   Box,
@@ -25,7 +32,7 @@ import {
 } from "@mui/material";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useFieldArray, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
 
@@ -44,9 +51,22 @@ const patientSchema = z.object({
   preferred_language: z.enum(["tr", "en"]),
   emergency_contact_name: z.string(),
   emergency_contact_phone: z.string(),
-  allergies: z.string().optional(),
+  allergy_status: z.enum(["confirmed", "none_known", "unknown"]),
+  allergies: z.array(z.object({
+    allergen: z.string().min(1),
+    reaction: z.string(),
+    severity: z.enum(["unknown", "mild", "moderate", "severe"]),
+  })).optional(),
   clinical_notes: z.string().optional(),
   is_active: z.boolean(),
+}).superRefine((value, context) => {
+  if (value.allergy_status === "confirmed" && !value.allergies?.length) {
+    context.addIssue({
+      code: "custom",
+      path: ["allergies"],
+      message: "At least one allergy is required",
+    });
+  }
 });
 
 const emptyPatient: PatientInput = {
@@ -61,7 +81,8 @@ const emptyPatient: PatientInput = {
   preferred_language: "tr",
   emergency_contact_name: "",
   emergency_contact_phone: "",
-  allergies: "",
+  allergy_status: "unknown",
+  allergies: [],
   clinical_notes: "",
   is_active: true,
 };
@@ -77,7 +98,23 @@ function PatientDetailsDialog({ patient, onClose }: { patient: Patient | null; o
         [t("address"), patient.address || "—"],
         [t("emergencyContact"), patient.emergency_contact_name || "—"],
         [t("emergencyPhone"), patient.emergency_contact_phone || "—"],
-        ...(patient.allergies !== undefined ? [[t("allergies"), patient.allergies || "—"]] : []),
+        ...(patient.allergy_status !== undefined
+          ? [[t("allergyStatus"), t(`allergyStatus_${patient.allergy_status}`)]]
+          : []),
+        ...(patient.allergies !== undefined
+          ? [[
+              t("allergies"),
+              patient.allergies.length
+                ? patient.allergies.map((allergy) => {
+                    const details = [
+                      allergy.reaction,
+                      t(`allergySeverity_${allergy.severity}`),
+                    ].filter(Boolean);
+                    return `${allergy.allergen}${details.length ? ` (${details.join(", ")})` : ""}`;
+                  }).join("\n")
+                : "—",
+            ]]
+          : []),
         ...(patient.clinical_notes !== undefined ? [[t("clinicalNotes"), patient.clinical_notes || "—"]] : []),
       ]
     : [];
@@ -113,9 +150,21 @@ function PatientDialog({
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const form = useForm<PatientInput>({ resolver: zodResolver(patientSchema), defaultValues: emptyPatient });
+  const {
+    fields: allergyFields,
+    append: appendAllergy,
+    remove: removeAllergy,
+    replace: replaceAllergies,
+  } = useFieldArray({ control: form.control, name: "allergies" });
+  const allergyStatus = form.watch("allergy_status");
   useEffect(() => {
     form.reset(patient ? { ...emptyPatient, ...patient } : emptyPatient);
   }, [form, patient, open]);
+  useEffect(() => {
+    if (allergyStatus !== "confirmed" && allergyFields.length) {
+      replaceAllergies([]);
+    }
+  }, [allergyFields.length, allergyStatus, replaceAllergies]);
   const mutation = useMutation({
     mutationFn: (values: PatientInput) =>
       patient ? patientApi.update(patient.public_id, values) : patientApi.create(values),
@@ -152,8 +201,43 @@ function PatientDialog({
             <TextField label={t("address")} multiline minRows={2} sx={{ gridColumn: { md: "1 / -1" } }} {...form.register("address")} />
             {canSeeClinicalFields && (
               <>
-                <TextField label={t("allergies")} multiline minRows={2} {...form.register("allergies")} />
+                <TextField select label={t("allergyStatus")} defaultValue="unknown" {...form.register("allergy_status")}>
+                  {(["unknown", "none_known", "confirmed"] as const).map((value) => (
+                    <MenuItem key={value} value={value}>{t(`allergyStatus_${value}`)}</MenuItem>
+                  ))}
+                </TextField>
                 <TextField label={t("clinicalNotes")} multiline minRows={2} {...form.register("clinical_notes")} />
+                {allergyStatus === "confirmed" && (
+                  <Stack spacing={1.5} sx={{ gridColumn: { md: "1 / -1" } }}>
+                    <Typography variant="subtitle2">{t("allergies")}</Typography>
+                    {allergyFields.map((field, index) => (
+                      <Stack key={field.id} direction={{ xs: "column", md: "row" }} spacing={1}>
+                        <TextField
+                          fullWidth
+                          label={t("allergen")}
+                          error={Boolean(form.formState.errors.allergies?.[index]?.allergen)}
+                          {...form.register(`allergies.${index}.allergen`)}
+                        />
+                        <TextField fullWidth label={t("allergyReaction")} {...form.register(`allergies.${index}.reaction`)} />
+                        <TextField select label={t("allergySeverity")} defaultValue="unknown" sx={{ minWidth: 150 }} {...form.register(`allergies.${index}.severity`)}>
+                          {(["unknown", "mild", "moderate", "severe"] as const).map((value) => (
+                            <MenuItem key={value} value={value}>{t(`allergySeverity_${value}`)}</MenuItem>
+                          ))}
+                        </TextField>
+                        <IconButton aria-label={t("removeAllergy")} onClick={() => removeAllergy(index)}>
+                          <DeleteOutline />
+                        </IconButton>
+                      </Stack>
+                    ))}
+                    <Button
+                      startIcon={<AddCircleOutline />}
+                      onClick={() => appendAllergy({ allergen: "", reaction: "", severity: "unknown" })}
+                      sx={{ alignSelf: "flex-start" }}
+                    >
+                      {t("addAllergy")}
+                    </Button>
+                  </Stack>
+                )}
               </>
             )}
           </Box>

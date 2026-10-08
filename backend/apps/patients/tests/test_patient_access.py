@@ -5,7 +5,7 @@ from django.contrib.auth.models import Group
 from rest_framework.test import APIClient
 
 from apps.accounts.models import User
-from apps.patients.models import Patient
+from apps.patients.models import Allergy, Patient
 
 
 @pytest.fixture
@@ -66,18 +66,52 @@ def test_patient_can_only_list_own_record(api_client):
 @pytest.mark.django_db
 def test_secretary_cannot_read_clinical_fields(api_client):
     secretary = create_user("secretary", "Secretary")
-    Patient.objects.create(
+    patient = Patient.objects.create(
         first_name="Ada",
         last_name="Example",
         birth_date=date(1990, 1, 1),
-        allergies="Synthetic allergy",
+        allergy_status=Patient.AllergyStatus.CONFIRMED,
         clinical_notes="Internal clinical note",
     )
+    Allergy.objects.create(patient=patient, allergen="Synthetic allergy")
     api_client.force_authenticate(secretary)
 
     response = api_client.get("/api/patients/")
 
     assert response.status_code == 200
     assert "allergies" not in response.data["results"][0]
+    assert "allergy_status" not in response.data["results"][0]
     assert "clinical_notes" not in response.data["results"][0]
+
+
+@pytest.mark.django_db
+def test_doctor_can_create_structured_allergy_record(api_client):
+    doctor = create_user("structured-allergy-doctor", "Doctor")
+    api_client.force_authenticate(doctor)
+
+    response = api_client.post(
+        "/api/patients/",
+        {
+            "first_name": "Ada",
+            "last_name": "Structured",
+            "birth_date": "1990-01-01",
+            "allergy_status": "confirmed",
+            "allergies": [
+                {
+                    "allergen": "Synthetic latex",
+                    "reaction": "Synthetic rash",
+                    "severity": "moderate",
+                }
+            ],
+        },
+        format="json",
+    )
+
+    assert response.status_code == 201
+    assert response.data["allergy_status"] == "confirmed"
+    assert response.data["allergies"][0]["allergen"] == "Synthetic latex"
+    assert Allergy.objects.filter(
+        patient__public_id=response.data["public_id"],
+        allergen="Synthetic latex",
+    ).exists()
 

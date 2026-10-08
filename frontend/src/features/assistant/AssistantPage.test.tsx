@@ -82,6 +82,19 @@ function renderPage() {
 }
 
 describe("AssistantPage quick prompts", () => {
+  it("sends a population allergy prompt without selecting a patient", async () => {
+    renderPage();
+
+    fireEvent.click(await screen.findByText("assistantPromptAllergyPatients"));
+
+    await waitFor(() => {
+      expect(vi.mocked(assistantApi.send).mock.calls[0]?.[0]).toEqual({
+        message: "assistantPromptAllergyPatients",
+        language: "tr",
+      });
+    });
+  });
+
   it("queues a doctor prompt and sends it automatically after patient selection", async () => {
     renderPage();
 

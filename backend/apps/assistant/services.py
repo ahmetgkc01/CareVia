@@ -69,7 +69,10 @@ MEDICAL_ADVICE_PATTERNS = (
 
 def normalize(value: str) -> str:
     decomposed = unicodedata.normalize("NFKD", value.casefold())
-    return "".join(character for character in decomposed if not unicodedata.combining(character))
+    normalized = "".join(
+        character for character in decomposed if not unicodedata.combining(character)
+    )
+    return normalized.replace("ı", "i")
 
 
 def has_any(value: str, patterns: tuple[str, ...]) -> bool:
@@ -81,7 +84,14 @@ def user_groups(user) -> set[str]:
 
 
 def is_doctor(user) -> bool:
-    return user.is_superuser or "Doctor" in user_groups(user)
+    return user.is_superuser or bool(user_groups(user) & {"Admin", "Doctor"})
+
+
+def authorized_patients(user):
+    """Return the patient population this assistant user may query."""
+    if is_doctor(user):
+        return Patient.objects.filter(is_active=True)
+    return Patient.objects.filter(user=user, is_active=True)
 
 
 def resolve_patient(user, patient_id=None) -> Patient | None:
@@ -89,8 +99,8 @@ def resolve_patient(user, patient_id=None) -> Patient | None:
     if is_doctor(user):
         if not patient_id:
             return None
-        return Patient.objects.filter(public_id=patient_id, is_active=True).first()
-    return Patient.objects.filter(user=user, is_active=True).first()
+        return authorized_patients(user).filter(public_id=patient_id).first()
+    return authorized_patients(user).first()
 
 
 def source(label_tr: str, label_en: str, updated_at: datetime | None, language: str) -> dict:
@@ -180,22 +190,47 @@ def format_appointments(patient: Patient, language: str) -> AssistantReply:
 
 
 def format_allergies(patient: Patient, language: str) -> AssistantReply:
-    allergies = patient.allergies.strip()
-    if allergies:
-        content = (
-            f"Carevia'da kayıtlı alerji bilgisi:\n\n{allergies}"
+    allergies = list(patient.allergies.all())
+    if patient.allergy_status == Patient.AllergyStatus.CONFIRMED and allergies:
+        lines = []
+        for allergy in allergies:
+            details = []
+            if allergy.reaction:
+                details.append(
+                    f"reaksiyon: {allergy.reaction}"
+                    if language == "tr"
+                    else f"reaction: {allergy.reaction}"
+                )
+            if allergy.severity != "unknown":
+                severity_tr = {
+                    "mild": "Hafif",
+                    "moderate": "Orta",
+                    "severe": "Şiddetli",
+                }.get(allergy.severity, "Bilinmiyor")
+                details.append(
+                    f"önem: {severity_tr}"
+                    if language == "tr"
+                    else f"severity: {allergy.get_severity_display()}"
+                )
+            suffix = f" ({', '.join(details)})" if details else ""
+            lines.append(f"- {allergy.allergen}{suffix}")
+        heading = (
+            "Carevia'da kayıtlı doğrulanmış alerjiler:"
             if language == "tr"
-            else f"Allergy information recorded in Carevia:\n\n{allergies}"
+            else "Confirmed allergies recorded in Carevia:"
+        )
+        content = f"{heading}\n\n" + "\n".join(lines)
+    elif patient.allergy_status == Patient.AllergyStatus.NONE_KNOWN:
+        content = (
+            "Carevia kaydında bilinen alerji olmadığı belirtilmiş."
+            if language == "tr"
+            else "The Carevia record states that there are no known allergies."
         )
     else:
         content = (
-            "Carevia'da kayıtlı bir alerji bilgisi bulunmuyor. "
-            "Bu, alerjiniz olmadığı anlamına gelmez."
+            "Carevia'da alerji durumu bilinmiyor. Bu, alerji olmadığı anlamına gelmez."
             if language == "tr"
-            else (
-                "No allergy information is recorded in Carevia. "
-                "This does not mean you have no allergies."
-            )
+            else "Allergy status is unknown in Carevia. This does not mean there are no allergies."
         )
     return AssistantReply(
         content,
@@ -205,6 +240,88 @@ def format_allergies(patient: Patient, language: str) -> AssistantReply:
                 "Hasta kaydı / Alerjiler",
                 "Patient record / Allergies",
                 patient.updated_at,
+                language,
+            )
+        ],
+    )
+
+
+def is_population_allergy_query(normalized: str) -> bool:
+    population_words = (
+        "hastalar",
+        "hasta list",
+        "hasta say",
+        "kac hasta",
+        "kimler",
+        "patients",
+        "patient list",
+        "which patient",
+        "how many patient",
+    )
+    return has_any(normalized, ("alerji", "allerg")) and has_any(
+        normalized, population_words
+    )
+
+
+def format_patients_with_allergies(user, normalized: str, language: str) -> AssistantReply:
+    queryset = authorized_patients(user).filter(
+        allergy_status=Patient.AllergyStatus.CONFIRMED
+    )
+    total = queryset.count()
+    visible = list(
+        queryset
+        .prefetch_related("allergies")
+        .order_by("last_name", "first_name")
+        [:20]
+    )
+    count_only = has_any(normalized, ("kac", "sayisi", "toplam", "how many", "count"))
+    include_details = has_any(
+        normalized,
+        ("alerjen", "reaksiyon", "detay", "birlikte", "allergen", "reaction", "detail"),
+    )
+    if count_only:
+        content = (
+            f"Yetkiniz kapsamındaki {total} aktif hastada doğrulanmış alerji kaydı bulunuyor."
+            if language == "tr"
+            else f"{total} active patients in your authorized scope have confirmed allergy records."
+        )
+    elif not total:
+        content = (
+            "Yetkiniz kapsamındaki aktif hastalarda doğrulanmış alerji kaydı bulunmuyor."
+            if language == "tr"
+            else "No active patients in your authorized scope have confirmed allergy records."
+        )
+    else:
+        lines = []
+        for patient in visible:
+            line = f"- {patient.first_name} {patient.last_name}"
+            if include_details:
+                allergens = ", ".join(allergy.allergen for allergy in patient.allergies.all())
+                if allergens:
+                    line += f" — {allergens}"
+            lines.append(line)
+        heading = (
+            f"Yetkiniz kapsamındaki {total} aktif hastada doğrulanmış alerji kaydı bulunuyor:"
+            if language == "tr"
+            else f"{total} active patients in your authorized scope have confirmed allergy records:"
+        )
+        content = f"{heading}\n\n" + "\n".join(lines)
+        if total > len(visible):
+            remaining = total - len(visible)
+            content += (
+                f"\n\n{remaining} sonuç daha var."
+                if language == "tr"
+                else f"\n\n{remaining} more results are available."
+            )
+    updated_at = queryset.order_by("-updated_at").values_list("updated_at", flat=True).first()
+    return AssistantReply(
+        content,
+        "allergy_population",
+        sources=[
+            source(
+                "Yetkili hasta kayıtları / Alerji durumu",
+                "Authorized patient records / Allergy status",
+                updated_at,
                 language,
             )
         ],
@@ -258,10 +375,13 @@ def format_clinical_notes(patient: Patient, language: str) -> AssistantReply:
 def patient_context_text(patient: Patient | None, include_notes: bool) -> str:
     if not patient:
         return "No patient context is selected."
+    allergy_summary = ", ".join(
+        allergy.allergen for allergy in patient.allergies.all()
+    ) or patient.get_allergy_status_display()
     fields = [
         f"Name: {patient.first_name} {patient.last_name}",
         f"Birth date: {patient.birth_date.isoformat()}",
-        f"Allergies recorded: {patient.allergies or 'None recorded'}",
+        f"Allergies recorded: {allergy_summary}",
     ]
     if include_notes:
         fields.append(f"Internal clinical note: {patient.clinical_notes or 'None recorded'}")
@@ -362,6 +482,21 @@ def create_reply(user, message: str, language: str, patient_id=None) -> Assistan
         if not patient:
             return missing_patient_reply(language, doctor)
         return format_appointments(patient, language)
+    if is_population_allergy_query(normalized):
+        if not doctor:
+            return AssistantReply(
+                (
+                    "Toplu hasta sorguları yalnızca yetkili doktor ve yönetici hesaplarına açıktır."
+                    if language == "tr"
+                    else (
+                        "Population-level patient queries are limited to authorized doctor "
+                        "and admin accounts."
+                    )
+                ),
+                "authorization",
+                "population_query_restricted",
+            )
+        return format_patients_with_allergies(user, normalized, language)
     if has_any(normalized, allergy_words):
         if not patient:
             return missing_patient_reply(language, doctor)

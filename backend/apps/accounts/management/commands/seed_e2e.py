@@ -3,7 +3,7 @@ from django.contrib.auth.models import Group
 from django.core.management.base import BaseCommand, CommandError
 
 from apps.accounts.models import User
-from apps.patients.models import Patient
+from apps.patients.models import Allergy, Patient
 
 
 class Command(BaseCommand):
@@ -33,13 +33,22 @@ class Command(BaseCommand):
         admin.groups.set([admin_group])
         doctor.groups.set([doctor_group])
         patient.groups.set([patient_group])
-        Patient.objects.update_or_create(
+        patient_record, _ = Patient.objects.update_or_create(
             user=patient,
             defaults={
                 "first_name": "E2E",
                 "last_name": "Patient",
                 "birth_date": "1990-01-01",
                 "preferred_language": "tr",
+                "allergy_status": Patient.AllergyStatus.CONFIRMED,
+            },
+        )
+        Allergy.objects.update_or_create(
+            patient=patient_record,
+            allergen="Synthetic E2E pollen",
+            defaults={
+                "reaction": "Synthetic E2E sneezing",
+                "severity": Allergy.Severity.MILD,
             },
         )
         self.stdout.write(self.style.SUCCESS("Synthetic E2E accounts are ready."))

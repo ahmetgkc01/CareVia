@@ -1,5 +1,16 @@
 import { apiRequest } from "../../shared/api/client";
 
+export type Allergy = {
+  id: number;
+  allergen: string;
+  reaction: string;
+  severity: "unknown" | "mild" | "moderate" | "severe";
+  created_at: string;
+  updated_at: string;
+};
+
+export type AllergyInput = Pick<Allergy, "allergen" | "reaction" | "severity">;
+
 export type Patient = {
   public_id: string;
   first_name: string;
@@ -13,14 +24,18 @@ export type Patient = {
   preferred_language: "tr" | "en";
   emergency_contact_name: string;
   emergency_contact_phone: string;
-  allergies?: string;
+  allergy_status?: "confirmed" | "none_known" | "unknown";
+  allergies?: Allergy[];
   clinical_notes?: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;
 };
 
-export type PatientInput = Omit<Patient, "public_id" | "created_at" | "updated_at">;
+export type PatientInput = Omit<Patient, "public_id" | "allergy_status" | "allergies" | "created_at" | "updated_at"> & {
+  allergy_status: "confirmed" | "none_known" | "unknown";
+  allergies?: AllergyInput[];
+};
 
 type PaginatedPatients = {
   count: number;

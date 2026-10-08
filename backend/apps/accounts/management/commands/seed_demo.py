@@ -7,7 +7,7 @@ from django.utils import timezone
 from apps.accounts.models import User
 from apps.appointments.models import Appointment
 from apps.clinicians.models import Clinician
-from apps.patients.models import Patient
+from apps.patients.models import Allergy, Patient
 
 FIRST_NAMES = (
     "Ayşe", "Mehmet", "Elif", "Deniz", "Zeynep", "Mert", "Selin", "Can",
@@ -250,13 +250,23 @@ class Command(BaseCommand):
                     "address": "Synthetic demo address",
                     "emergency_contact_name": "Synthetic Contact",
                     "emergency_contact_phone": f"+999100{index + 1:06d}",
-                    "allergies": (
-                        "Synthetic pollen allergy" if index % 4 == 0 else "No known allergies"
+                    "allergy_status": (
+                        Patient.AllergyStatus.CONFIRMED
+                        if index % 4 == 0
+                        else Patient.AllergyStatus.NONE_KNOWN
                     ),
                     "clinical_notes": "Synthetic demonstration record. Not a real patient.",
                     "is_active": index % 25 != 24,
                 },
             )
+            patient.allergies.all().delete()
+            if patient.allergy_status == Patient.AllergyStatus.CONFIRMED:
+                Allergy.objects.create(
+                    patient=patient,
+                    allergen="Synthetic pollen",
+                    reaction="Synthetic demonstration reaction",
+                    severity=Allergy.Severity.MILD,
+                )
             patients.append(patient)
         return patients
 

@@ -85,8 +85,8 @@ export function AssistantPage() {
     });
   };
 
-  const queueOrSendPrompt = (prompt: string) => {
-    if (isDoctor && !patientId) {
+  const queueOrSendPrompt = (prompt: string, requiresPatient = true) => {
+    if (requiresPatient && isDoctor && !patientId) {
       setPendingPrompt(prompt);
       setMessage("");
       patientSelectRef.current?.focus();
@@ -120,8 +120,17 @@ export function AssistantPage() {
   };
 
   const quickPrompts = isDoctor
-    ? [t("assistantPromptAllergies"), t("assistantPromptAppointments"), t("assistantPromptNotes")]
-    : [t("assistantPromptMyAllergies"), t("assistantPromptMyAppointments"), t("assistantPromptProfile")];
+    ? [
+        { label: t("assistantPromptAllergyPatients"), requiresPatient: false },
+        { label: t("assistantPromptAllergies"), requiresPatient: true },
+        { label: t("assistantPromptAppointments"), requiresPatient: true },
+        { label: t("assistantPromptNotes"), requiresPatient: true },
+      ]
+    : [
+        { label: t("assistantPromptMyAllergies"), requiresPatient: false },
+        { label: t("assistantPromptMyAppointments"), requiresPatient: false },
+        { label: t("assistantPromptProfile"), requiresPatient: false },
+      ];
 
   if (!canUseAssistant && session.isSuccess) {
     return <Alert severity="warning">{t("assistantRoleRestricted")}</Alert>;
@@ -206,9 +215,9 @@ export function AssistantPage() {
               <Stack direction="row" useFlexGap flexWrap="wrap" justifyContent="center" gap={1}>
                 {quickPrompts.map((prompt) => (
                   <Chip
-                    key={prompt}
-                    label={prompt}
-                    onClick={() => queueOrSendPrompt(prompt)}
+                    key={prompt.label}
+                    label={prompt.label}
+                    onClick={() => queueOrSendPrompt(prompt.label, prompt.requiresPatient)}
                     disabled={sendMessage.isPending}
                     clickable
                   />

@@ -16,7 +16,7 @@ from apps.assistant.models import AssistantMessage, KnowledgeChunk
 from apps.assistant.services import create_reply, provider_reply
 from apps.assistant.throttles import AssistantRateThrottle
 from apps.clinicians.models import Clinician
-from apps.patients.models import Patient
+from apps.patients.models import Allergy, Patient
 
 
 def user_with_group(username, group_name):
@@ -41,7 +41,7 @@ def assistant_records():
         first_name="Ada",
         last_name="Example",
         birth_date="1990-01-01",
-        allergies="Synthetic pollen allergy",
+        allergy_status=Patient.AllergyStatus.CONFIRMED,
         clinical_notes="Internal synthetic note",
     )
     other_patient = Patient.objects.create(
@@ -49,8 +49,10 @@ def assistant_records():
         first_name="Other",
         last_name="Example",
         birth_date="1985-01-01",
-        allergies="Private synthetic latex allergy",
+        allergy_status=Patient.AllergyStatus.CONFIRMED,
     )
+    Allergy.objects.create(patient=patient, allergen="Synthetic pollen allergy")
+    Allergy.objects.create(patient=other_patient, allergen="Private synthetic latex allergy")
     start_at = timezone.now() + timedelta(days=1)
     Appointment.objects.create(
         patient=patient,
@@ -101,6 +103,66 @@ def test_doctor_can_use_explicit_patient_context(assistant_records):
 
     assert response.status_code == 201
     assert "Private synthetic latex allergy" in response.data["content"]
+
+
+@pytest.mark.django_db
+def test_doctor_can_list_patients_with_confirmed_allergies_without_context(assistant_records):
+    doctor_user, _, _, _ = assistant_records
+    Patient.objects.create(
+        first_name="No",
+        last_name="Allergy",
+        birth_date="1992-01-01",
+        allergy_status=Patient.AllergyStatus.NONE_KNOWN,
+    )
+    client = APIClient()
+    client.force_authenticate(doctor_user)
+
+    response = client.post(
+        "/api/assistant/messages/",
+        {"message": "Alerjisi olan hastaları listele", "language": "tr"},
+        format="json",
+    )
+
+    assert response.status_code == 201
+    assert response.data["category"] == "allergy_population"
+    assert "Ada Example" in response.data["content"]
+    assert "Other Example" in response.data["content"]
+    assert "No Allergy" not in response.data["content"]
+    assert response.data["safety_code"] == ""
+
+
+@pytest.mark.django_db
+def test_admin_group_can_use_assistant_population_query(assistant_records):
+    admin = user_with_group("assistant-admin", "Admin")
+    client = APIClient()
+    client.force_authenticate(admin)
+
+    response = client.post(
+        "/api/assistant/messages/",
+        {"message": "Kaç hastada alerji kaydı var?", "language": "tr"},
+        format="json",
+    )
+
+    assert response.status_code == 201
+    assert response.data["category"] == "allergy_population"
+    assert "2 aktif hastada" in response.data["content"]
+
+
+@pytest.mark.django_db
+def test_patient_cannot_run_population_query(assistant_records):
+    _, patient_user, _, _ = assistant_records
+    client = APIClient()
+    client.force_authenticate(patient_user)
+
+    response = client.post(
+        "/api/assistant/messages/",
+        {"message": "Alerjisi olan hastalar kimler?", "language": "tr"},
+        format="json",
+    )
+
+    assert response.status_code == 201
+    assert response.data["safety_code"] == "population_query_restricted"
+    assert "Other Example" not in response.data["content"]
 
 
 @pytest.mark.django_db

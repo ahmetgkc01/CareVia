@@ -14,10 +14,13 @@ Carevia, React/MUI ve Django REST Framework ile geliştirilen çift dilli bir sa
 
 ## Carevia AI Asistan
 
-Hasta ve doktor hesapları `/assistant` ekranındaki rol tabanlı sohbet asistanını kullanabilir.
+Hasta, doktor ve yönetici hesapları `/assistant` ekranındaki rol tabanlı sohbet asistanını kullanabilir.
 
 - Hasta yalnızca kendi profilini, alerji bilgisini ve randevularını sorgulayabilir.
 - Doktor, sohbet ekranında seçtiği sentetik hastanın yetkili kayıtlarını sorgulayabilir.
+- Doktor ve yönetici, hasta seçmeden "alerjisi olan hastaları listele" veya "kaç hastada
+  alerji kaydı var" gibi yetkili toplu sorgular çalıştırabilir.
+- Alerjiler; durum, alerjen, reaksiyon ve önem derecesi alanlarıyla yapılandırılmış olarak saklanır.
 - Teşhis, ilaç/doz, tedavi değişikliği ve kesin güvence isteyen mesajlar kural tabanlı güvenlik katmanında engellenir.
 - Acil durum ifadeleri modelden bağımsız olarak yerel acil yardım kanalına yönlendirilir.
 - Sohbet yanıtları kaynak ve güncelleme tarihi gösterebilir; erişimler kullanıcıya bağlı olarak saklanır.
