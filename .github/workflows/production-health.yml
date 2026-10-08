@@ -1,0 +1,48 @@
+name: Production health
+
+on:
+  workflow_dispatch:
+    inputs:
+      production_url:
+        description: Public Carevia base URL (falls back to CAREVIA_PRODUCTION_URL variable)
+        required: false
+        type: string
+      expected_release:
+        description: Expected commit SHA (defaults to the selected workflow ref)
+        required: false
+        type: string
+  schedule:
+    - cron: "17 * * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  scheduled-health:
+    if: github.event_name == 'schedule' && vars.CAREVIA_PRODUCTION_URL != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check production health
+        run: python deploy/check_health.py "$PRODUCTION_URL"
+        env:
+          PRODUCTION_URL: ${{ vars.CAREVIA_PRODUCTION_URL }}
+
+  deployment-verification:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ inputs.production_url || vars.CAREVIA_PRODUCTION_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require production URL
+        if: inputs.production_url == '' && vars.CAREVIA_PRODUCTION_URL == ''
+        run: |
+          echo "Set the CAREVIA_PRODUCTION_URL repository variable or provide production_url." >&2
+          exit 1
+      - name: Verify deployed release
+        run: python deploy/check_health.py "$PRODUCTION_URL" --expected-release "$EXPECTED_RELEASE"
+        env:
+          PRODUCTION_URL: ${{ inputs.production_url || vars.CAREVIA_PRODUCTION_URL }}
+          EXPECTED_RELEASE: ${{ inputs.expected_release || github.sha }}

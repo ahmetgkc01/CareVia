@@ -100,5 +100,6 @@ describe("AssistantPage quick prompts", () => {
         patient_id: "patient-1",
       });
     });
+    expect(patientApi.list).toHaveBeenCalledWith("", 1);
   });
 });

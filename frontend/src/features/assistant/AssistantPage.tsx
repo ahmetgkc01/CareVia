@@ -5,13 +5,13 @@ import {
 } from "@mui/icons-material";
 import {
   Alert,
+  Autocomplete,
   Avatar,
   Box,
   Button,
   Chip,
   CircularProgress,
   Divider,
-  MenuItem,
   Paper,
   Stack,
   TextField,
@@ -32,6 +32,8 @@ export function AssistantPage() {
   const patientSelectRef = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState("");
   const [patientId, setPatientId] = useState("");
+  const [patientSearch, setPatientSearch] = useState("");
+  const [debouncedPatientSearch, setDebouncedPatientSearch] = useState("");
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
   const session = useQuery({ queryKey: ["session"], queryFn: authApi.me });
   const groups = session.data?.groups ?? [];
@@ -43,8 +45,8 @@ export function AssistantPage() {
     enabled: canUseAssistant,
   });
   const patients = useQuery({
-    queryKey: ["assistant-patients"],
-    queryFn: () => patientApi.list("", 1, 100),
+    queryKey: ["assistant-patients", debouncedPatientSearch],
+    queryFn: () => patientApi.list(debouncedPatientSearch, 1),
     enabled: isDoctor,
   });
   const sendMessage = useMutation({
@@ -69,6 +71,11 @@ export function AssistantPage() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [history.data, sendMessage.isPending]);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setDebouncedPatientSearch(patientSearch.trim()), 300);
+    return () => window.clearTimeout(timeout);
+  }, [patientSearch]);
 
   const sendPrompt = (content: string, contextPatientId = patientId) => {
     sendMessage.mutate({
@@ -143,22 +150,33 @@ export function AssistantPage() {
       <Alert severity="warning">{t("assistantSafetyNotice")}</Alert>
 
       {isDoctor && (
-        <TextField
-          select
+        <Autocomplete
           size="small"
-          label={t("assistantPatientContext")}
-          value={patientId}
-          onChange={(event) => selectPatient(event.target.value)}
-          inputRef={patientSelectRef}
+          options={patients.data?.results ?? []}
+          loading={patients.isPending}
+          filterOptions={(options) => options}
+          getOptionLabel={(patient) => `${patient.first_name} ${patient.last_name}`}
+          isOptionEqualToValue={(option, value) => option.public_id === value.public_id}
+          value={patients.data?.results.find((patient) => patient.public_id === patientId) ?? null}
+          inputValue={patientSearch}
+          onInputChange={(_event, value, reason) => {
+            if (reason !== "reset") setPatientSearch(value);
+          }}
+          onChange={(_event, patient) => {
+            setPatientSearch(patient ? `${patient.first_name} ${patient.last_name}` : "");
+            selectPatient(patient?.public_id ?? "");
+          }}
+          noOptionsText={t("noPatients")}
           sx={{ maxWidth: 420 }}
-        >
-          <MenuItem value="">{t("assistantNoPatientSelected")}</MenuItem>
-          {patients.data?.results.map((patient) => (
-            <MenuItem key={patient.public_id} value={patient.public_id}>
-              {patient.first_name} {patient.last_name}
-            </MenuItem>
-          ))}
-        </TextField>
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              label={t("assistantPatientContext")}
+              placeholder={t("assistantPatientSearch")}
+              inputRef={patientSelectRef}
+            />
+          )}
+        />
       )}
 
       {isDoctor && pendingPrompt && (

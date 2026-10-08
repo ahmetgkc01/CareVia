@@ -1,3 +1,5 @@
+import os
+
 from django.contrib import admin
 from django.db import connection
 from django.http import JsonResponse
@@ -11,7 +13,12 @@ def health_check(request):
     with connection.cursor() as cursor:
         cursor.execute("SELECT 1")
         cursor.fetchone()
-    return JsonResponse({"status": "ok"})
+    return JsonResponse(
+        {
+            "status": "ok",
+            "release": os.getenv("CAREVIA_RELEASE", "development"),
+        }
+    )
 
 
 urlpatterns = [

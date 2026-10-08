@@ -17,16 +17,23 @@ class Command(BaseCommand):
             raise CommandError("seed_e2e is disabled when DEBUG is false.")
 
         admin_group, _ = Group.objects.get_or_create(name="Admin")
+        doctor_group, _ = Group.objects.get_or_create(name="Doctor")
         patient_group, _ = Group.objects.get_or_create(name="Patient")
         admin = self.ensure_user("e2e_admin", "e2e_admin@carevia.local", options["password"])
+        doctor = self.ensure_user(
+            "e2e_doctor",
+            "e2e_doctor@carevia.local",
+            options["password"],
+        )
         patient = self.ensure_user(
             "e2e_patient",
             "e2e_patient@carevia.local",
             options["password"],
         )
         admin.groups.set([admin_group])
+        doctor.groups.set([doctor_group])
         patient.groups.set([patient_group])
-        Patient.objects.get_or_create(
+        Patient.objects.update_or_create(
             user=patient,
             defaults={
                 "first_name": "E2E",

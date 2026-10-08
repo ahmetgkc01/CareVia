@@ -11,6 +11,20 @@ Before every deployment:
 5. Test login with one staff account and one patient account.
 6. Confirm that application logs are valid single-line JSON and contain no request bodies.
 
+Set `CAREVIA_RELEASE` to the deployed Git commit SHA when starting the production containers. The
+health response exposes this non-secret value so operators can distinguish a healthy old release
+from the intended deployment:
+
+```bash
+CAREVIA_RELEASE="$(git rev-parse HEAD)" docker compose -f deploy/compose.prod.yaml up -d
+python deploy/check_health.py "https://carevia.example.com" \
+  --expected-release "$(git rev-parse HEAD)"
+```
+
+Configure the `CAREVIA_PRODUCTION_URL` GitHub repository variable to enable the hourly
+`Production health` workflow. After a deployment, run that workflow manually with the deployed SHA;
+the `production` environment then records the verification result and public URL.
+
 Set `CAREVIA_DOMAIN` to the public hostname before loading `deploy/Caddyfile.lightsail` into Caddy.
 The Caddy process must receive this environment variable; the file defaults to `carevia.localhost` so
 an omitted production hostname cannot accidentally claim an unrelated public domain.

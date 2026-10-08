@@ -4,6 +4,8 @@ services:
       context: ../backend
     env_file:
       - ${CAREVIA_ENV_FILE:-.env.production}
+    environment:
+      CAREVIA_RELEASE: ${CAREVIA_RELEASE:-unknown}
     restart: unless-stopped
     healthcheck:
       test:
