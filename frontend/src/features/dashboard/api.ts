@@ -9,7 +9,13 @@ export type DashboardSummary = {
   active_nurses: number;
 };
 
+export type HealthStatus = {
+  status: "ok";
+  release: string;
+};
+
 export const dashboardApi = {
   summary: () => apiRequest<DashboardSummary>("/api/dashboard/summary/"),
+  health: () => apiRequest<HealthStatus>("/api/health/"),
 };
 

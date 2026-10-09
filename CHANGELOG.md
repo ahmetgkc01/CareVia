@@ -15,6 +15,7 @@ sürümler [Semantic Versioning](https://semver.org/lang/tr/) ile etiketlenir.
 - Yapılandırılmış alerji kayıtları ve toplu alerji sorguları.
 - Sentetik demo verisi ve tarayıcı tabanlı Admin/Patient uçtan uca testleri.
 - Production health endpoint'i, sürüm doğrulaması ve operasyon runbook'u.
+- Uygulamanın sağ alt köşesinde dağıtılmış backend sürümünü gösteren sürüm etiketi.
 
 ### Değiştirildi
 

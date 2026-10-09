@@ -16,6 +16,7 @@ import {
   Button,
   Card,
   CardContent,
+  Chip,
   Container,
   Drawer,
   IconButton,
@@ -104,8 +105,16 @@ function AppShell() {
   const queryClient = useQueryClient();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const session = useQuery({ queryKey: ["session"], queryFn: authApi.me });
+  const health = useQuery({
+    queryKey: ["health"],
+    queryFn: dashboardApi.health,
+    retry: false,
+    staleTime: Infinity,
+  });
   const canViewUsers = session.data?.groups.some((group) => ["Admin", "Auditor"].includes(group));
   const canUseAssistant = session.data?.groups.some((group) => ["Doctor", "Patient"].includes(group)) || session.data?.groups.includes("Admin");
+  const release = health.data?.release;
+  const displayedRelease = release && release.length > 12 ? release.slice(0, 7) : release;
   const items = [
     [t("dashboard"), "/dashboard", <DashboardOutlined />],
     [t("patients"), "/patients", <PeopleAltOutlined />],
@@ -191,6 +200,17 @@ function AppShell() {
       <Box component="main" sx={{ flexGrow: 1, py: 4 }}>
         <Toolbar />
         <Container maxWidth="xl"><Outlet /></Container>
+      </Box>
+      <Box
+        title={release}
+        sx={{ position: "fixed", right: 12, bottom: 10, zIndex: (muiTheme) => muiTheme.zIndex.drawer + 1 }}
+      >
+        <Chip
+          size="small"
+          variant="outlined"
+          label={`${t("version")}: ${displayedRelease ?? "—"}`}
+          sx={{ bgcolor: "background.paper", color: "text.secondary" }}
+        />
       </Box>
     </Box>
   );
