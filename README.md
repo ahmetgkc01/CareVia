@@ -2,6 +2,8 @@
 
 Carevia, React/MUI ve Django REST Framework ile geliştirilen çift dilli bir sağlık yönetimi portföy uygulamasıdır.
 
+Projenin kullanıcıya dönük gelişim geçmişi [`CHANGELOG.md`](CHANGELOG.md) dosyasında tutulur.
+
 > Bu repository kimliği belirlenebilir gerçek hasta verisi içermez. Geliştirme ve demo verileri sentetik olmalıdır.
 
 ## Teknoloji seti
@@ -73,6 +75,55 @@ python manage.py seed_demo --password "yerel-demo-parolasi"
 
 Sayılar `--patients`, `--doctors`, `--nurses`, `--secretaries`, `--auditors` ve
 `--appointments` seçenekleriyle değiştirilebilir.
+
+## Kullanıcı kategorileri ve rol atama
+
+Carevia kullanıcı yetkilerini Django `Group` kayıtlarıyla yönetir. Uygulamada altı kullanıcı
+kategorisi bulunur:
+
+| Kategori | Hasta kayıtları | Randevular | Sağlık çalışanları | AI asistan | Kullanıcı yönetimi |
+| --- | --- | --- | --- | --- | --- |
+| `Admin` | Tüm kayıtları yönetir | Tümünü yönetir | Görür ve yönetir | Kullanabilir | Görür ve yönetir |
+| `Doctor` | Tüm kayıtları yönetir | Tümünü yönetir | Görür | Kullanabilir | Erişemez |
+| `Nurse` | Tüm kayıtları yönetir | Tümünü yönetir | Görür | Erişemez | Erişemez |
+| `Secretary` | Tüm kayıtları yönetir | Tümünü yönetir | Görür | Erişemez | Erişemez |
+| `Patient` | Yalnızca bağlı kendi kaydını görür | Yalnızca kendi randevularını görür | Görür | Kendi verileriyle kullanabilir | Erişemez |
+| `Auditor` | Tüm kayıtları salt okunur görür | Tümünü salt okunur görür | Salt okunur görür | Erişemez | Salt okunur görür |
+
+Rol gruplarını ilk kez oluşturmak veya mevcut izinlerle yeniden eşitlemek için backend
+klasöründe şu komutu çalıştırın:
+
+```bash
+python manage.py seed_roles
+```
+
+Kullanıcıya rol vermenin önerilen yolu:
+
+1. `Admin` hesabıyla Carevia'ya giriş yapın.
+2. **Kullanıcılar** ekranını (`/users`) açın.
+3. **Kullanıcı ekle** seçeneğini seçin.
+4. Kullanıcı bilgilerini, en az sekiz karakterli parolayı ve kategoriyi girin.
+5. Kullanıcıyı aktif durumda kaydedin.
+
+`Admin` kullanıcıları hesap oluşturabilir, düzenleyebilir, devre dışı bırakabilir ve rolünü
+değiştirebilir. `Auditor` kullanıcıları aynı ekranı yalnızca okuyabilir. Uygulama arayüzü her
+kullanıcıya tek bir ana kategori atar; backend birden fazla grubu desteklese de yetkilerin
+öngörülebilir kalması için normal kullanıcıları tek grupta tutun.
+
+`Patient` kategorisindeki bir hesabın kendi sağlık verilerini görebilmesi için ayrıca bir
+`Patient` kaydına bağlanması gerekir. Bu ilişki `Patient.user` alanıdır. Demo verilerinde bağlantı
+otomatik kurulur; manuel kullanıcı oluştururken Django admin üzerinden ilgili hasta kaydının
+**user** alanını seçin.
+
+Sunum için bütün kategorilerde sentetik kullanıcılar oluşturmanın en hızlı yolu:
+
+```bash
+python manage.py seed_roles
+python manage.py seed_demo --password "yerel-demo-parolasi"
+```
+
+Bu komut gerçek kullanıcı veya hasta verisi yerine yalnızca sentetik demo verileriyle
+çalıştırılmalıdır.
 
 ## Lightsail geliştirme/test dağıtımı
 
