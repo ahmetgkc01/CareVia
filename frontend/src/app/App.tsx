@@ -1,12 +1,14 @@
 import {
   AutoAwesomeOutlined,
   CalendarMonthOutlined,
+  CheckCircleOutline,
   MedicalServicesOutlined,
   DashboardOutlined,
   GroupsOutlined,
   LanguageOutlined,
   LogoutOutlined,
   MenuOutlined,
+  OpenInNewOutlined,
   PeopleAltOutlined,
 } from "@mui/icons-material";
 import {
@@ -18,6 +20,7 @@ import {
   CardContent,
   Chip,
   Container,
+  Divider,
   Drawer,
   IconButton,
   List,
@@ -25,6 +28,7 @@ import {
   ListItemIcon,
   ListItemText,
   CircularProgress,
+  Paper,
   Stack,
   Toolbar,
   Typography,
@@ -68,8 +72,9 @@ function PageLoader() {
 }
 
 function DashboardPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const summary = useQuery({ queryKey: ["dashboard-summary"], queryFn: dashboardApi.summary });
+  const release = useQuery({ queryKey: ["release-overview"], queryFn: dashboardApi.release });
   const patientScope = summary.data?.scope === "patient";
   const metrics = [
     [patientScope ? t("myPatientProfile") : t("totalPatients"), summary.data?.total_patients],
@@ -95,6 +100,76 @@ function DashboardPage() {
           </Card>
         ))}
       </Box>
+      <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }}>
+        <Stack spacing={2.5}>
+          <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" gap={2}>
+            <Box>
+              <Typography variant="h6">{t("developmentHistory")}</Typography>
+              <Typography color="text.secondary">{t("developmentHistoryDescription")}</Typography>
+            </Box>
+            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+              <Chip
+                color="primary"
+                label={`${t("currentRelease")}: ${release.data?.release ?? "—"}`}
+              />
+              {release.data && (
+                <Button
+                  size="small"
+                  endIcon={<OpenInNewOutlined />}
+                  href={release.data.changelog_url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {t("viewChangelog")}
+                </Button>
+              )}
+            </Stack>
+          </Stack>
+          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+            {[t("qualityChecks"), t("changelogStep"), t("commitStep"), t("githubPushStep")].map((step, index) => (
+              <Stack direction="row" spacing={1} alignItems="center" key={step}>
+                <Chip size="small" icon={<CheckCircleOutline />} label={step} variant="outlined" />
+                {index < 3 && <Typography color="text.disabled">→</Typography>}
+              </Stack>
+            ))}
+          </Stack>
+          <Divider />
+          {release.isError && <Alert severity="warning">{t("releaseHistoryError")}</Alert>}
+          <Stack spacing={1.5}>
+            {release.data?.commits.map((commit) => (
+              <Stack
+                key={commit.sha}
+                direction={{ xs: "column", sm: "row" }}
+                spacing={1.5}
+                alignItems={{ sm: "center" }}
+              >
+                <Chip
+                  size="small"
+                  label={commit.sha.slice(0, 7)}
+                  component="a"
+                  clickable
+                  href={`${release.data.repository_url}/commit/${commit.sha}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  sx={{ fontFamily: "monospace" }}
+                />
+                <Box flexGrow={1}>
+                  <Typography fontWeight={600}>{commit.message}</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {new Intl.DateTimeFormat(i18n.resolvedLanguage, {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    }).format(new Date(commit.committed_at))}
+                  </Typography>
+                </Box>
+              </Stack>
+            ))}
+            {release.data && release.data.commits.length === 0 && (
+              <Typography color="text.secondary">{t("releaseHistoryUnavailable")}</Typography>
+            )}
+          </Stack>
+        </Stack>
+      </Paper>
     </Stack>
   );
 }

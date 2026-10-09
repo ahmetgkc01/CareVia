@@ -13,6 +13,7 @@ dist/
 coverage/
 playwright-report/
 test-results/
+automation/logs/
 *.tsbuildinfo
 .DS_Store
 .idea/

@@ -8,3 +8,16 @@ class DashboardSummarySerializer(serializers.Serializer):
     active_clinicians = serializers.IntegerField(read_only=True)
     active_doctors = serializers.IntegerField(read_only=True)
     active_nurses = serializers.IntegerField(read_only=True)
+
+
+class ReleaseCommitSerializer(serializers.Serializer):
+    sha = serializers.CharField(read_only=True)
+    committed_at = serializers.DateTimeField(read_only=True)
+    message = serializers.CharField(read_only=True)
+
+
+class ReleaseOverviewSerializer(serializers.Serializer):
+    release = serializers.CharField(read_only=True)
+    repository_url = serializers.URLField(read_only=True)
+    changelog_url = serializers.URLField(read_only=True)
+    commits = ReleaseCommitSerializer(many=True, read_only=True)

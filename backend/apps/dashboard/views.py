@@ -1,3 +1,7 @@
+import os
+import subprocess
+
+from django.conf import settings
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema
 from rest_framework.permissions import BasePermission
@@ -8,10 +12,41 @@ from apps.appointments.models import Appointment
 from apps.clinicians.models import Clinician
 from apps.patients.models import Patient
 
-from .serializers import DashboardSummarySerializer
+from .serializers import DashboardSummarySerializer, ReleaseOverviewSerializer
 
 STAFF_GROUPS = {"Admin", "Doctor", "Nurse", "Secretary", "Auditor"}
 UPCOMING_STATUSES = {Appointment.Status.SCHEDULED, Appointment.Status.CONFIRMED}
+
+
+def recent_commits(limit=6):
+    try:
+        result = subprocess.run(  # noqa: S603
+            [
+                "git",
+                "-c",
+                f"safe.directory={settings.ROOT_DIR}",
+                "log",
+                f"-{limit}",
+                "--date=iso-strict",
+                "--pretty=format:%H%x1f%ad%x1f%s",
+            ],
+            cwd=settings.ROOT_DIR,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=3,
+        )
+    except (FileNotFoundError, subprocess.SubprocessError):
+        return []
+
+    commits = []
+    for line in result.stdout.splitlines():
+        fields = line.split("\x1f", 2)
+        if len(fields) == 3:
+            commits.append(
+                {"sha": fields[0], "committed_at": fields[1], "message": fields[2]}
+            )
+    return commits
 
 
 class DashboardAccessPermission(BasePermission):
@@ -62,6 +97,24 @@ class DashboardSummaryView(APIView):
                     is_active=True,
                     profession=Clinician.Profession.NURSE,
                 ).count(),
+            }
+        )
+
+
+class ReleaseOverviewView(APIView):
+    permission_classes = (DashboardAccessPermission,)
+
+    @extend_schema(responses={200: ReleaseOverviewSerializer})
+    def get(self, request):
+        repository_url = os.getenv(
+            "CAREVIA_REPOSITORY_URL", "https://github.com/ahmetgokce89/CareVia"
+        ).rstrip("/")
+        return Response(
+            {
+                "release": os.getenv("CAREVIA_RELEASE", "development"),
+                "repository_url": repository_url,
+                "changelog_url": f"{repository_url}/blob/main/CHANGELOG.md",
+                "commits": recent_commits(),
             }
         )
 

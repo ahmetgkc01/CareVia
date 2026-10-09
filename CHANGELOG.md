@@ -16,6 +16,8 @@ sürümler [Semantic Versioning](https://semver.org/lang/tr/) ile etiketlenir.
 - Sentetik demo verisi ve tarayıcı tabanlı Admin/Patient uçtan uca testleri.
 - Production health endpoint'i, sürüm doğrulaması ve operasyon runbook'u.
 - Uygulamanın sağ alt köşesinde dağıtılmış backend sürümünü gösteren sürüm etiketi.
+- Genel Bakış ekranında son commitleri ve günlük sürümleme akışını gösteren geliştirme geçmişi kartı.
+- Güvenlik ve kalite kontrollerinden sonra değişiklikleri commit edip GitHub'a gönderen günlük otomatik sürümleme akışı.
 
 ### Değiştirildi
 

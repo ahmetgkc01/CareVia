@@ -184,3 +184,20 @@ Tarayici tabanli Admin ve Patient rol kontrolleri icin once gelistirme veritaban
 
 Bu kontroller `.github/workflows/ci.yml` üzerinden her push ve pull request'te de çalışır.
 
+## Gün sonu otomatik sürümleme
+
+Windows'taki **Carevia Daily Commit** görevi her gün saat 21.00'de aşağıdaki akışı çalıştırır:
+
+```text
+Değişiklik kontrolü → Gizli dosya kontrolü → Changelog → Test ve build → Commit → GitHub push
+```
+
+Görev yalnızca `main` dalı `origin/main` ile eşleşiyorsa ilerler. Merge çakışması, şüpheli dosya,
+başarısız test veya build bulunursa commit ve push yapmadan durur. Çalışma kayıtları Git tarafından
+yok sayılan `automation/logs/` klasörüne yazılır. Otomasyonun komutları
+[`automation/Invoke-DailyCommit.ps1`](automation/Invoke-DailyCommit.ps1), Codex talimatı ise
+[`automation/daily-commit-prompt.md`](automation/daily-commit-prompt.md) dosyasındadır.
+
+Genel Bakış ekranındaki **Geliştirme ve sürüm geçmişi** kartı güncel sürümü, son commitleri ve bu
+akışı görsel olarak gösterir. Commit kodları ilgili GitHub commit sayfasına bağlanır.
+

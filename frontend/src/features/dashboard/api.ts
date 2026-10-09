@@ -14,8 +14,20 @@ export type HealthStatus = {
   release: string;
 };
 
+export type ReleaseOverview = {
+  release: string;
+  repository_url: string;
+  changelog_url: string;
+  commits: Array<{
+    sha: string;
+    committed_at: string;
+    message: string;
+  }>;
+};
+
 export const dashboardApi = {
   summary: () => apiRequest<DashboardSummary>("/api/dashboard/summary/"),
   health: () => apiRequest<HealthStatus>("/api/health/"),
+  release: () => apiRequest<ReleaseOverview>("/api/release/"),
 };
 
