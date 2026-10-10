@@ -7,6 +7,8 @@ sürümler [Semantic Versioning](https://semver.org/lang/tr/) ile etiketlenir.
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-10
+
 ### Eklendi
 
 - Admin, Doctor, Nurse, Secretary, Patient ve Auditor kategorileri için rol tabanlı erişim.
@@ -18,6 +20,8 @@ sürümler [Semantic Versioning](https://semver.org/lang/tr/) ile etiketlenir.
 - Uygulamanın sağ alt köşesinde dağıtılmış backend sürümünü gösteren sürüm etiketi.
 - Genel Bakış ekranında son commitleri ve günlük sürümleme akışını gösteren geliştirme geçmişi kartı.
 - Güvenlik ve kalite kontrollerinden sonra değişiklikleri commit edip GitHub'a gönderen günlük otomatik sürümleme akışı.
+- README uygulama ekran görüntüleri ve yeniden üretilebilir görsel yakalama komutu.
+- Sunum akışı, konuşma notları ve hazırlık kontrol listesi.
 
 ### Değiştirildi
 
@@ -40,4 +44,7 @@ sürümler [Semantic Versioning](https://semver.org/lang/tr/) ile etiketlenir.
 4. Sunum ya da yayın için kararlı durumda `Unreleased` içeriğini tarihli bir sürüm başlığına taşıyın.
 5. Aynı sürüm numarasıyla Git etiketi oluşturup etiketi GitHub'a gönderin.
 
-İlk sunum sürümü için önerilen etiket `v0.1.0`'dır.
+İlk sunum sürümü `v0.1.0` etiketiyle yayınlanmıştır.
+
+[Unreleased]: https://github.com/ahmetgokce89/CareVia/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/ahmetgokce89/CareVia/releases/tag/v0.1.0

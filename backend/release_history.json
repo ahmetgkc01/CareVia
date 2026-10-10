@@ -1,9 +1,14 @@
 {
   "current": {
-    "committed_at": "2026-10-10T20:20:39+03:00",
-    "message": "fix: persist release history in production"
+    "committed_at": "2026-10-10T23:16:14+03:00",
+    "message": "chore(release): prepare v0.1.0 presentation"
   },
   "previous": [
+    {
+      "sha": "a085dbd1a6ff4338a52a1953f5063806f7726731",
+      "committed_at": "2026-10-10T20:21:09+03:00",
+      "message": "fix: persist release history in production"
+    },
     {
       "sha": "92ea450b6809794fff9908573c03f4db71ce21a3",
       "committed_at": "2026-10-09T21:15:27+03:00",
@@ -18,6 +23,11 @@
       "sha": "40cb442bc03d58e2510bc55f031845702e6d6535",
       "committed_at": "2026-10-09T18:18:58+03:00",
       "message": "docs: document user roles and changelog"
+    },
+    {
+      "sha": "11168c6c8b03b355a06b9ae2c3ad92eb9a9efd97",
+      "committed_at": "2026-10-08T23:09:33+03:00",
+      "message": "Add structured allergy queries and records"
     }
   ]
 }

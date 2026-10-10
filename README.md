@@ -6,6 +6,20 @@ Projenin kullanıcıya dönük gelişim geçmişi [`CHANGELOG.md`](CHANGELOG.md)
 
 > Bu repository kimliği belirlenebilir gerçek hasta verisi içermez. Geliştirme ve demo verileri sentetik olmalıdır.
 
+## Uygulama önizlemesi
+
+### Genel Bakış ve sürüm geçmişi
+
+![Carevia Genel Bakış ekranı ve geliştirme geçmişi](docs/images/carevia-dashboard.png)
+
+| Hasta yönetimi | Carevia AI Asistan |
+| --- | --- |
+| ![Carevia hasta yönetimi](docs/images/carevia-patients.png) | ![Carevia AI Asistan](docs/images/carevia-assistant.png) |
+
+Giriş ekranı dahil bütün görseller `npm run capture:screenshots` komutuyla sentetik demo verisi
+üzerinden yeniden üretilebilir. Sunum sırası ve konuşma notları için
+[`docs/demo-script.md`](docs/demo-script.md) dosyasına bakın.
+
 ## Teknoloji seti
 
 - React, TypeScript, Vite
@@ -200,4 +214,7 @@ yok sayılan `automation/logs/` klasörüne yazılır. Otomasyonun komutları
 
 Genel Bakış ekranındaki **Geliştirme ve sürüm geçmişi** kartı güncel sürümü, son commitleri ve bu
 akışı görsel olarak gösterir. Commit kodları ilgili GitHub commit sayfasına bağlanır.
+
+Kararlı sunum sürümleri GitHub'ın **Releases** bölümünde, gün içinde tamamlanan çalışmalar ise
+[`CHANGELOG.md`](CHANGELOG.md) ve Genel Bakış ekranında izlenebilir.
 
