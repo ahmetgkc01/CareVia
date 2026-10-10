@@ -97,6 +97,33 @@ try {
         throw "Codex returned an invalid commit title: $commitMessage"
     }
 
+    $previousCommits = @()
+    $gitHistory = & git -c "safe.directory=$resolvedPath" log -5 --date=iso-strict "--pretty=format:%H%x1f%ad%x1f%s"
+    foreach ($line in $gitHistory) {
+        $fields = $line -split [char]0x1f, 3
+        if ($fields.Count -eq 3) {
+            $previousCommits += [ordered]@{
+                sha = $fields[0]
+                committed_at = $fields[1]
+                message = $fields[2]
+            }
+        }
+    }
+    $releaseHistory = [ordered]@{
+        current = [ordered]@{
+            committed_at = (Get-Date).ToString("o")
+            message = $commitMessage
+        }
+        previous = $previousCommits
+    }
+    $releaseHistoryPath = Join-Path $resolvedPath "backend\release_history.json"
+    $releaseHistoryJson = $releaseHistory | ConvertTo-Json -Depth 5
+    [System.IO.File]::WriteAllText(
+        $releaseHistoryPath,
+        $releaseHistoryJson + [Environment]::NewLine,
+        (New-Object System.Text.UTF8Encoding($false))
+    )
+
     Push-Location (Join-Path $resolvedPath "backend")
     try {
         Invoke-CheckedCommand "..\.venv\Scripts\python.exe" -m ruff check .

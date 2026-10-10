@@ -1,3 +1,4 @@
+import json
 import os
 import subprocess
 
@@ -16,6 +17,27 @@ from .serializers import DashboardSummarySerializer, ReleaseOverviewSerializer
 
 STAFF_GROUPS = {"Admin", "Doctor", "Nurse", "Secretary", "Auditor"}
 UPCOMING_STATUSES = {Appointment.Status.SCHEDULED, Appointment.Status.CONFIRMED}
+
+
+def bundled_commits(limit=6):
+    history_path = settings.BASE_DIR / "release_history.json"
+    try:
+        history = json.loads(history_path.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError):
+        return []
+
+    current = history.get("current", {})
+    commits = []
+    if current.get("message") and current.get("committed_at"):
+        commits.append(
+            {
+                "sha": os.getenv("CAREVIA_RELEASE", "development"),
+                "committed_at": current["committed_at"],
+                "message": current["message"],
+            }
+        )
+    commits.extend(history.get("previous", []))
+    return commits[:limit]
 
 
 def recent_commits(limit=6):
@@ -37,7 +59,7 @@ def recent_commits(limit=6):
             timeout=3,
         )
     except (FileNotFoundError, subprocess.SubprocessError):
-        return []
+        return bundled_commits(limit)
 
     commits = []
     for line in result.stdout.splitlines():
@@ -46,7 +68,7 @@ def recent_commits(limit=6):
             commits.append(
                 {"sha": fields[0], "committed_at": fields[1], "message": fields[2]}
             )
-    return commits
+    return commits or bundled_commits(limit)
 
 
 class DashboardAccessPermission(BasePermission):

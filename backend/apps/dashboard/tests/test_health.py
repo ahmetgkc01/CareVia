@@ -41,3 +41,24 @@ def test_release_overview_returns_recent_commits(client, monkeypatch):
     assert response.status_code == 200
     assert response.json()["release"] == "abc1234"
     assert response.json()["commits"][0]["message"] == "feat: show release history"
+
+
+def test_bundled_commits_uses_deployed_release(monkeypatch, tmp_path, settings):
+    from apps.dashboard.views import bundled_commits
+
+    history = tmp_path / "release_history.json"
+    history.write_text(
+        '{"current":{"committed_at":"2026-10-09T21:00:00+03:00",'
+        '"message":"feat: release"},"previous":[]}',
+        encoding="utf-8",
+    )
+    settings.BASE_DIR = tmp_path
+    monkeypatch.setenv("CAREVIA_RELEASE", "deployed-sha")
+
+    assert bundled_commits() == [
+        {
+            "sha": "deployed-sha",
+            "committed_at": "2026-10-09T21:00:00+03:00",
+            "message": "feat: release",
+        }
+    ]

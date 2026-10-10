@@ -1,0 +1,23 @@
+{
+  "current": {
+    "committed_at": "2026-10-10T20:20:39+03:00",
+    "message": "fix: persist release history in production"
+  },
+  "previous": [
+    {
+      "sha": "92ea450b6809794fff9908573c03f4db71ce21a3",
+      "committed_at": "2026-10-09T21:15:27+03:00",
+      "message": "feat: geliştirme geçmişi ve günlük sürümleme akışı ekle"
+    },
+    {
+      "sha": "ec4115c1957d551a722f1f267e7a2c5080791f7b",
+      "committed_at": "2026-10-09T18:23:15+03:00",
+      "message": "feat: display deployed release in app"
+    },
+    {
+      "sha": "40cb442bc03d58e2510bc55f031845702e6d6535",
+      "committed_at": "2026-10-09T18:18:58+03:00",
+      "message": "docs: document user roles and changelog"
+    }
+  ]
+}
