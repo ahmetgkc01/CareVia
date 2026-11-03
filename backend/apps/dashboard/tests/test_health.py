@@ -43,6 +43,22 @@ def test_release_overview_returns_recent_commits(client, monkeypatch):
     assert response.json()["commits"][0]["message"] == "feat: show release history"
 
 
+@pytest.mark.django_db
+def test_patient_cannot_read_release_overview(client):
+    group = Group.objects.create(name="Patient")
+    user = User.objects.create_user(
+        username="release-patient",
+        email="release-patient@example.test",
+        password="test-password",
+    )
+    user.groups.add(group)
+    client.force_login(user)
+
+    response = client.get(reverse("release-overview"))
+
+    assert response.status_code == 403
+
+
 def test_bundled_commits_uses_deployed_release(monkeypatch, tmp_path, settings):
     from apps.dashboard.views import bundled_commits
 

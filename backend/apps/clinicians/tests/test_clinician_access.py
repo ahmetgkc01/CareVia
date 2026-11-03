@@ -19,7 +19,7 @@ def user_with_group(username, group_name=None):
 
 
 @pytest.mark.django_db
-def test_patient_can_read_clinicians():
+def test_patient_cannot_read_clinician_directory():
     doctor = user_with_group("listed-doctor", "Doctor")
     Clinician.objects.create(user=doctor, profession="doctor")
     client = APIClient()
@@ -27,8 +27,7 @@ def test_patient_can_read_clinicians():
 
     response = client.get("/api/clinicians/")
 
-    assert response.status_code == 200
-    assert response.data["count"] == 1
+    assert response.status_code == 403
 
 
 @pytest.mark.django_db

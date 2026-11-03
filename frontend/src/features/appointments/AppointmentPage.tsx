@@ -178,8 +178,9 @@ export function AppointmentPage() {
     queryFn: () => appointmentApi.list(statusFilter, page),
   });
   const groups = session.data?.groups ?? [];
-  const canEdit = groups.some((group) => ["Admin", "Doctor", "Nurse", "Secretary"].includes(group));
-  const canSeeInternalNotes = groups.some((group) => ["Admin", "Doctor", "Nurse"].includes(group));
+  const isSuperUser = session.data?.is_superuser ?? false;
+  const canEdit = isSuperUser || groups.some((group) => ["Admin", "Doctor", "Nurse", "Secretary"].includes(group));
+  const canSeeInternalNotes = isSuperUser || groups.some((group) => ["Admin", "Doctor", "Nurse"].includes(group));
   const dateFormatter = new Intl.DateTimeFormat(i18n.resolvedLanguage ?? "tr", {
     dateStyle: "medium",
     timeStyle: "short",

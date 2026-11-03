@@ -1,33 +1,33 @@
 {
-  "current": {
-    "committed_at": "2026-10-10T23:16:14+03:00",
-    "message": "chore(release): prepare v0.1.0 presentation"
-  },
-  "previous": [
-    {
-      "sha": "a085dbd1a6ff4338a52a1953f5063806f7726731",
-      "committed_at": "2026-10-10T20:21:09+03:00",
-      "message": "fix: persist release history in production"
-    },
-    {
-      "sha": "92ea450b6809794fff9908573c03f4db71ce21a3",
-      "committed_at": "2026-10-09T21:15:27+03:00",
-      "message": "feat: geliştirme geçmişi ve günlük sürümleme akışı ekle"
-    },
-    {
-      "sha": "ec4115c1957d551a722f1f267e7a2c5080791f7b",
-      "committed_at": "2026-10-09T18:23:15+03:00",
-      "message": "feat: display deployed release in app"
-    },
-    {
-      "sha": "40cb442bc03d58e2510bc55f031845702e6d6535",
-      "committed_at": "2026-10-09T18:18:58+03:00",
-      "message": "docs: document user roles and changelog"
-    },
-    {
-      "sha": "11168c6c8b03b355a06b9ae2c3ad92eb9a9efd97",
-      "committed_at": "2026-10-08T23:09:33+03:00",
-      "message": "Add structured allergy queries and records"
-    }
-  ]
+    "current":  {
+                    "committed_at":  "2026-11-02T21:00:20.3197125+03:00",
+                    "message":  "feat: improve assistant context and access controls"
+                },
+    "previous":  [
+                     {
+                         "sha":  "a95469dccb51bfe6e2e5c7f7e41ec494e21dc508",
+                         "committed_at":  "2026-10-10T23:27:17+03:00",
+                         "message":  "chore(release): prepare v0.1.0 presentation"
+                     },
+                     {
+                         "sha":  "a085dbd1a6ff4338a52a1953f5063806f7726731",
+                         "committed_at":  "2026-10-10T20:21:09+03:00",
+                         "message":  "fix: persist release history in production"
+                     },
+                     {
+                         "sha":  "92ea450b6809794fff9908573c03f4db71ce21a3",
+                         "committed_at":  "2026-10-09T21:15:27+03:00",
+                         "message":  "feat: geli┼ştirme ge├ğmi┼şi ve g├╝nl├╝k s├╝r├╝mleme ak─▒┼ş─▒ ekle"
+                     },
+                     {
+                         "sha":  "ec4115c1957d551a722f1f267e7a2c5080791f7b",
+                         "committed_at":  "2026-10-09T18:23:15+03:00",
+                         "message":  "feat: display deployed release in app"
+                     },
+                     {
+                         "sha":  "40cb442bc03d58e2510bc55f031845702e6d6535",
+                         "committed_at":  "2026-10-09T18:18:58+03:00",
+                         "message":  "docs: document user roles and changelog"
+                     }
+                 ]
 }

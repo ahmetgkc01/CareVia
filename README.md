@@ -40,6 +40,8 @@ Hasta, doktor ve yönetici hesapları `/assistant` ekranındaki rol tabanlı soh
 - Teşhis, ilaç/doz, tedavi değişikliği ve kesin güvence isteyen mesajlar kural tabanlı güvenlik katmanında engellenir.
 - Acil durum ifadeleri modelden bağımsız olarak yerel acil yardım kanalına yönlendirilir.
 - Sohbet yanıtları kaynak ve güncelleme tarihi gösterebilir; erişimler kullanıcıya bağlı olarak saklanır.
+- Son konuşma mesajları kullanıcı ve seçili hasta bağlamına göre sınırlandırılarak takip
+  sorularında kullanılır; bir doktorda seçilen hastanın geçmişi başka hastaya taşınmaz.
 
 Asistan, `GENAI_API_URL` veya `GENAI_MODEL` boş bırakıldığında harici sohbet modeline veri
 göndermeyen deterministik demo modunda çalışır. OpenAI Responses API etkinleştirildiğinde
@@ -55,6 +57,19 @@ python manage.py ingest_knowledge --source-key carevia-policy --file docs/policy
 
 Küçük sentetik demo bilgi tabanını oluşturmak için `python manage.py seed_knowledge` komutunu
 çalıştırın. Aynı içerik yeniden embedding'e dönüştürülmez; yalnızca değişen içerik güncellenir.
+
+AI kalite ölçümlerini çalıştırmak için önce sentetik bilgi tabanını hazırlayın, ardından:
+
+```bash
+python manage.py evaluate_assistant
+python manage.py evaluate_assistant --username e2e_patient --output assistant-eval.json
+```
+
+İlk komut güvenlik recall, false-positive ve retrieval recall@k ölçümlerini çalıştırır. İkinci
+komut mevcut sentetik kullanıcıyla kaynak/ifade temelli groundedness proxy'si, p50/p95 gecikme,
+token kullanımı ve yapılandırılmışsa tahmini üretim maliyetini de raporlar. Groundedness proxy'si
+semantik doğruluğun tam kanıtı değildir; kaynak ve beklenen/yasak ifade kontrollerinden oluşan
+deterministik bir regresyon ölçümüdür.
 
 ## Repository yapısı
 

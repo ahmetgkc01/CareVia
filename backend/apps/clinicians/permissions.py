@@ -1,6 +1,6 @@
 from rest_framework.permissions import SAFE_METHODS, BasePermission
 
-READ_GROUPS = {"Admin", "Doctor", "Nurse", "Secretary", "Patient", "Auditor"}
+READ_GROUPS = {"Admin", "Doctor", "Nurse", "Secretary", "Auditor"}
 
 
 class ClinicianPermission(BasePermission):

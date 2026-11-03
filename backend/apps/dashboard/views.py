@@ -83,6 +83,18 @@ class DashboardAccessPermission(BasePermission):
         return bool(groups & STAFF_GROUPS or "Patient" in groups)
 
 
+class ReleaseOverviewPermission(BasePermission):
+    """Keep operational release details limited to privileged roles."""
+
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        if request.user.is_superuser:
+            return True
+        groups = set(request.user.groups.values_list("name", flat=True))
+        return bool(groups & {"Admin", "Auditor"})
+
+
 class DashboardSummaryView(APIView):
     permission_classes = (DashboardAccessPermission,)
 
@@ -95,36 +107,54 @@ class DashboardSummaryView(APIView):
         if patient_scope:
             patients = Patient.objects.filter(user=request.user, is_active=True)
             appointments = Appointment.objects.filter(patient__user=request.user)
+            care_team = (
+                Clinician.objects.filter(
+                    appointments__patient__user=request.user,
+                    is_active=True,
+                )
+                .select_related("user")
+                .distinct()
+                .order_by("user__first_name", "user__last_name")
+            )
             scope = "patient"
         else:
             patients = Patient.objects.filter(is_active=True)
             appointments = Appointment.objects.all()
+            care_team = Clinician.objects.none()
             scope = "staff"
 
         upcoming_appointments = appointments.filter(
             start_at__gte=timezone.now(),
             status__in=UPCOMING_STATUSES,
         ).count()
+        active_clinicians = Clinician.objects.filter(is_active=True)
         return Response(
-            {
-                "scope": scope,
-                "total_patients": patients.count(),
-                "upcoming_appointments": upcoming_appointments,
-                "active_clinicians": Clinician.objects.filter(is_active=True).count(),
-                "active_doctors": Clinician.objects.filter(
-                    is_active=True,
-                    profession=Clinician.Profession.DOCTOR,
-                ).count(),
-                "active_nurses": Clinician.objects.filter(
-                    is_active=True,
-                    profession=Clinician.Profession.NURSE,
-                ).count(),
-            }
+            DashboardSummarySerializer(
+                {
+                    "scope": scope,
+                    "total_patients": patients.count(),
+                    "upcoming_appointments": upcoming_appointments,
+                    "active_clinicians": (
+                        0 if patient_scope else active_clinicians.count()
+                    ),
+                    "active_doctors": 0
+                    if patient_scope
+                    else active_clinicians.filter(
+                        profession=Clinician.Profession.DOCTOR,
+                    ).count(),
+                    "active_nurses": 0
+                    if patient_scope
+                    else active_clinicians.filter(
+                        profession=Clinician.Profession.NURSE,
+                    ).count(),
+                    "care_team": care_team,
+                }
+            ).data
         )
 
 
 class ReleaseOverviewView(APIView):
-    permission_classes = (DashboardAccessPermission,)
+    permission_classes = (ReleaseOverviewPermission,)
 
     @extend_schema(responses={200: ReleaseOverviewSerializer})
     def get(self, request):

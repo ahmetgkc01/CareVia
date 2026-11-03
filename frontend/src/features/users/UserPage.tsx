@@ -34,12 +34,18 @@ import { ManagedUser, ManagedUserInput, userApi } from "./api";
 
 const roles = ["Admin", "Doctor", "Nurse", "Secretary", "Patient", "Auditor"] as const;
 const userSchema = z.object({
-  username: z.string().min(3),
-  email: z.email(),
-  first_name: z.string().min(1),
-  last_name: z.string().min(1),
+  username: z.string().trim()
+    .min(1, { message: "validationRequired" })
+    .min(3, { message: "validationUsernameMin" }),
+  email: z.string().trim()
+    .min(1, { message: "validationRequired" })
+    .pipe(z.email({ message: "validationEmail" })),
+  first_name: z.string().trim().min(1, { message: "validationRequired" }),
+  last_name: z.string().trim().min(1, { message: "validationRequired" }),
   role: z.enum(roles),
-  password: z.string(),
+  password: z.string().refine((value) => value.length === 0 || value.length >= 8, {
+    message: "validationPasswordMin",
+  }),
   is_active: z.boolean(),
 });
 type UserForm = z.infer<typeof userSchema>;
@@ -54,10 +60,22 @@ const emptyUser: UserForm = {
   is_active: true,
 };
 
-function UserDialog({ open, user, onClose }: { open: boolean; user: ManagedUser | null; onClose: () => void }) {
+function UserDialog({
+  open,
+  user,
+  canAssignAdmin,
+  onClose,
+}: {
+  open: boolean;
+  user: ManagedUser | null;
+  canAssignAdmin: boolean;
+  onClose: () => void;
+}) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const form = useForm<UserForm>({ resolver: zodResolver(userSchema), defaultValues: emptyUser });
+  const errorText = (message?: string) => (message ? t(message) : undefined);
+  const assignableRoles = canAssignAdmin ? roles : roles.filter((role) => role !== "Admin");
   useEffect(() => {
     form.reset(
       user
@@ -75,7 +93,6 @@ function UserDialog({ open, user, onClose }: { open: boolean; user: ManagedUser 
   }, [form, open, user]);
   const mutation = useMutation({
     mutationFn: (values: UserForm) => {
-      if (!user && values.password.length < 8) throw new Error("password-required");
       const payload: ManagedUserInput = {
         username: values.username,
         email: values.email,
@@ -92,26 +109,40 @@ function UserDialog({ open, user, onClose }: { open: boolean; user: ManagedUser 
       onClose();
     },
   });
+  const submit = (values: UserForm) => {
+    if (!user && !values.password) {
+      form.setError("password", { message: "validationPasswordMin" }, { shouldFocus: true });
+      return;
+    }
+    mutation.mutate(values);
+  };
+  const showCreatePasswordError = () => {
+    if (!user && !form.getValues("password")) {
+      form.setError("password", { message: "validationPasswordMin" }, { shouldFocus: false });
+    }
+  };
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <Box component="form" onSubmit={form.handleSubmit((values) => mutation.mutate(values))}>
+      <Box component="form" noValidate onSubmit={form.handleSubmit(submit, showCreatePasswordError)}>
         <DialogTitle>{user ? t("editUser") : t("addUser")}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} pt={1}>
-            <TextField label={t("username")} error={Boolean(form.formState.errors.username)} {...form.register("username")} />
-            <TextField label={t("email")} type="email" error={Boolean(form.formState.errors.email)} {...form.register("email")} />
+            <Typography variant="caption" color="text.secondary">{t("requiredFieldsHint")}</Typography>
+            <TextField required label={t("username")} error={Boolean(form.formState.errors.username)} helperText={errorText(form.formState.errors.username?.message)} {...form.register("username")} />
+            <TextField required label={t("email")} type="email" error={Boolean(form.formState.errors.email)} helperText={errorText(form.formState.errors.email?.message)} {...form.register("email")} />
             <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-              <TextField fullWidth label={t("firstName")} {...form.register("first_name")} />
-              <TextField fullWidth label={t("lastName")} {...form.register("last_name")} />
+              <TextField required fullWidth label={t("firstName")} error={Boolean(form.formState.errors.first_name)} helperText={errorText(form.formState.errors.first_name?.message)} {...form.register("first_name")} />
+              <TextField required fullWidth label={t("lastName")} error={Boolean(form.formState.errors.last_name)} helperText={errorText(form.formState.errors.last_name?.message)} {...form.register("last_name")} />
             </Stack>
-            <TextField select label={t("role")} defaultValue="Patient" {...form.register("role")}>
-              {roles.map((role) => <MenuItem key={role} value={role}>{role}</MenuItem>)}
+            <TextField required select label={t("role")} defaultValue="Patient" {...form.register("role")}>
+              {assignableRoles.map((role) => <MenuItem key={role} value={role}>{role}</MenuItem>)}
             </TextField>
             <TextField
+              required={!user}
               label={user ? t("newPasswordOptional") : t("password")}
               type="password"
               error={Boolean(form.formState.errors.password)}
-              helperText={!user ? t("minimumEightCharacters") : undefined}
+              helperText={errorText(form.formState.errors.password?.message) ?? (!user ? t("minimumEightCharacters") : undefined)}
               {...form.register("password")}
             />
             <TextField select label={t("status")} defaultValue="true" {...form.register("is_active", { setValueAs: (value) => value === "true" })}>
@@ -138,7 +169,9 @@ export function UserPage() {
   const [selectedUser, setSelectedUser] = useState<ManagedUser | null>(null);
   const session = useQuery({ queryKey: ["session"], queryFn: authApi.me });
   const users = useQuery({ queryKey: ["users", search, page], queryFn: () => userApi.list(search, page) });
-  const canEdit = session.data?.groups.includes("Admin") ?? false;
+  const isSuperUser = session.data?.is_superuser ?? false;
+  const canEdit = isSuperUser || (session.data?.groups.includes("Admin") ?? false);
+  const canEditUser = (user: ManagedUser) => isSuperUser || !user.groups.includes("Admin");
   const openNew = () => { setSelectedUser(null); setDialogOpen(true); };
   const openEdit = (user: ManagedUser) => { setSelectedUser(user); setDialogOpen(true); };
 
@@ -155,11 +188,11 @@ export function UserPage() {
         <TableBody>{users.data?.results.map((user) => <TableRow key={user.id} hover>
           <TableCell>{user.first_name} {user.last_name}</TableCell><TableCell>{user.username}</TableCell><TableCell>{user.email}</TableCell>
           <TableCell>{user.groups.join(", ") || "—"}</TableCell><TableCell><Chip size="small" color={user.is_active ? "success" : "default"} label={user.is_active ? t("active") : t("inactive")} /></TableCell>
-          {canEdit && <TableCell align="right"><IconButton aria-label={t("editUser")} onClick={() => openEdit(user)}><EditOutlined /></IconButton></TableCell>}
+          {canEdit && <TableCell align="right">{canEditUser(user) && <IconButton aria-label={t("editUser")} onClick={() => openEdit(user)}><EditOutlined /></IconButton>}</TableCell>}
         </TableRow>)}</TableBody>
       </Table></TableContainer>
       <Stack direction="row" justifyContent="flex-end" gap={1}><Button disabled={!users.data?.previous} onClick={() => setPage((value) => value - 1)}>{t("previous")}</Button><Button disabled={!users.data?.next} onClick={() => setPage((value) => value + 1)}>{t("next")}</Button></Stack>
-      <UserDialog open={dialogOpen} user={selectedUser} onClose={() => setDialogOpen(false)} />
+      <UserDialog open={dialogOpen} user={selectedUser} canAssignAdmin={isSuperUser} onClose={() => setDialogOpen(false)} />
     </Stack>
   );
 }

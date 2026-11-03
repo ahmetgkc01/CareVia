@@ -38,6 +38,22 @@ def test_user_can_login_read_session_and_logout():
 
 
 @pytest.mark.django_db
+def test_session_identifies_super_user():
+    super_user = User.objects.create_superuser(
+        username="session-super-user",
+        email="session-super-user@example.test",
+        password="test-password",
+    )
+    client = APIClient()
+    client.force_authenticate(super_user)
+
+    response = client.get("/api/session/me/")
+
+    assert response.status_code == 200
+    assert response.data["is_superuser"] is True
+
+
+@pytest.mark.django_db
 def test_login_rejects_request_without_csrf_token():
     User.objects.create_user(
         username="doctor",

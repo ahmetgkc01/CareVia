@@ -7,6 +7,12 @@ export type DashboardSummary = {
   active_clinicians: number;
   active_doctors: number;
   active_nurses: number;
+  care_team: Array<{
+    public_id: string;
+    display_name: string;
+    profession: "doctor" | "nurse";
+    specialty: string;
+  }>;
 };
 
 export type HealthStatus = {

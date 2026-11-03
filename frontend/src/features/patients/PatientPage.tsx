@@ -40,11 +40,11 @@ import { authApi } from "../auth/api";
 import { Patient, PatientInput, patientApi } from "./api";
 
 const patientSchema = z.object({
-  first_name: z.string().min(2),
-  last_name: z.string().min(2),
-  birth_date: z.string().min(1),
+  first_name: z.string().trim().min(1, { message: "validationRequired" }),
+  last_name: z.string().trim().min(1, { message: "validationRequired" }),
+  birth_date: z.string().min(1, { message: "validationRequired" }),
   gender: z.enum(["female", "male", "non_binary", "other", "undisclosed", ""]),
-  email: z.union([z.email(), z.literal("")]),
+  email: z.union([z.email({ message: "validationEmail" }), z.literal("")]),
   phone: z.string(),
   address: z.string(),
   country_code: z.string().max(2),
@@ -53,7 +53,7 @@ const patientSchema = z.object({
   emergency_contact_phone: z.string(),
   allergy_status: z.enum(["confirmed", "none_known", "unknown"]),
   allergies: z.array(z.object({
-    allergen: z.string().min(1),
+    allergen: z.string().trim().min(1, { message: "validationRequired" }),
     reaction: z.string(),
     severity: z.enum(["unknown", "mild", "moderate", "severe"]),
   })).optional(),
@@ -64,7 +64,7 @@ const patientSchema = z.object({
     context.addIssue({
       code: "custom",
       path: ["allergies"],
-      message: "At least one allergy is required",
+      message: "validationAllergyRequired",
     });
   }
 });
@@ -157,6 +157,7 @@ function PatientDialog({
     replace: replaceAllergies,
   } = useFieldArray({ control: form.control, name: "allergies" });
   const allergyStatus = form.watch("allergy_status");
+  const errorText = (message?: string) => (message ? t(message) : undefined);
   useEffect(() => {
     form.reset(patient ? { ...emptyPatient, ...patient } : emptyPatient);
   }, [form, patient, open]);
@@ -176,20 +177,23 @@ function PatientDialog({
   });
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
-      <Box component="form" onSubmit={form.handleSubmit((values) => mutation.mutate(values))}>
+      <Box component="form" noValidate onSubmit={form.handleSubmit((values) => mutation.mutate(values))}>
         <DialogTitle>{patient ? t("editPatient") : t("addPatient")}</DialogTitle>
         <DialogContent>
+          <Typography variant="caption" color="text.secondary" display="block" mb={2}>
+            {t("requiredFieldsHint")}
+          </Typography>
           <Box display="grid" gridTemplateColumns={{ xs: "1fr", md: "1fr 1fr" }} gap={2} pt={1}>
-            <TextField label={t("firstName")} error={Boolean(form.formState.errors.first_name)} {...form.register("first_name")} />
-            <TextField label={t("lastName")} error={Boolean(form.formState.errors.last_name)} {...form.register("last_name")} />
-            <TextField label={t("birthDate")} type="date" slotProps={{ inputLabel: { shrink: true } }} error={Boolean(form.formState.errors.birth_date)} {...form.register("birth_date")} />
+            <TextField required label={t("firstName")} error={Boolean(form.formState.errors.first_name)} helperText={errorText(form.formState.errors.first_name?.message)} {...form.register("first_name")} />
+            <TextField required label={t("lastName")} error={Boolean(form.formState.errors.last_name)} helperText={errorText(form.formState.errors.last_name?.message)} {...form.register("last_name")} />
+            <TextField required label={t("birthDate")} type="date" slotProps={{ inputLabel: { shrink: true } }} error={Boolean(form.formState.errors.birth_date)} helperText={errorText(form.formState.errors.birth_date?.message)} {...form.register("birth_date")} />
             <TextField select label={t("gender")} defaultValue="" {...form.register("gender")}>
               <MenuItem value="">—</MenuItem>
               {(["female", "male", "non_binary", "other", "undisclosed"] as const).map((value) => (
                 <MenuItem key={value} value={value}>{t(value)}</MenuItem>
               ))}
             </TextField>
-            <TextField label={t("email")} type="email" {...form.register("email")} />
+            <TextField label={t("email")} type="email" error={Boolean(form.formState.errors.email)} helperText={errorText(form.formState.errors.email?.message)} {...form.register("email")} />
             <TextField label={t("phone")} {...form.register("phone")} />
             <TextField label={t("countryCode")} inputProps={{ maxLength: 2 }} {...form.register("country_code")} />
             <TextField select label={t("preferredLanguage")} defaultValue="tr" {...form.register("preferred_language")}>
@@ -213,9 +217,11 @@ function PatientDialog({
                     {allergyFields.map((field, index) => (
                       <Stack key={field.id} direction={{ xs: "column", md: "row" }} spacing={1}>
                         <TextField
+                          required
                           fullWidth
                           label={t("allergen")}
                           error={Boolean(form.formState.errors.allergies?.[index]?.allergen)}
+                          helperText={errorText(form.formState.errors.allergies?.[index]?.allergen?.message)}
                           {...form.register(`allergies.${index}.allergen`)}
                         />
                         <TextField fullWidth label={t("allergyReaction")} {...form.register(`allergies.${index}.reaction`)} />
@@ -236,6 +242,11 @@ function PatientDialog({
                     >
                       {t("addAllergy")}
                     </Button>
+                    {form.formState.errors.allergies?.message && (
+                      <Typography color="error" variant="caption">
+                        {errorText(form.formState.errors.allergies.message)}
+                      </Typography>
+                    )}
                   </Stack>
                 )}
               </>
@@ -265,8 +276,9 @@ export function PatientPage() {
     queryFn: () => patientApi.list(search, page),
   });
   const groups = session.data?.groups ?? [];
-  const canEdit = groups.some((group) => ["Admin", "Doctor", "Nurse", "Secretary"].includes(group));
-  const canSeeClinicalFields = groups.some((group) => ["Admin", "Doctor", "Nurse"].includes(group));
+  const isSuperUser = session.data?.is_superuser ?? false;
+  const canEdit = isSuperUser || groups.some((group) => ["Admin", "Doctor", "Nurse", "Secretary"].includes(group));
+  const canSeeClinicalFields = isSuperUser || groups.some((group) => ["Admin", "Doctor", "Nurse"].includes(group));
 
   const openNew = () => { setSelectedPatient(null); setDialogOpen(true); };
   const openEdit = (patient: Patient) => { setSelectedPatient(patient); setDialogOpen(true); };

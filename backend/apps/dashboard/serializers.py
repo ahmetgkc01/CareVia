@@ -1,5 +1,7 @@
 from rest_framework import serializers
 
+from apps.clinicians.serializers import ClinicianSummarySerializer
+
 
 class DashboardSummarySerializer(serializers.Serializer):
     scope = serializers.ChoiceField(choices=("staff", "patient"), read_only=True)
@@ -8,6 +10,7 @@ class DashboardSummarySerializer(serializers.Serializer):
     active_clinicians = serializers.IntegerField(read_only=True)
     active_doctors = serializers.IntegerField(read_only=True)
     active_nurses = serializers.IntegerField(read_only=True)
+    care_team = ClinicianSummarySerializer(many=True, read_only=True)
 
 
 class ReleaseCommitSerializer(serializers.Serializer):

@@ -68,6 +68,7 @@ def test_staff_dashboard_counts_all_records(dashboard_records):
         "active_clinicians": 1,
         "active_doctors": 1,
         "active_nurses": 0,
+        "care_team": [],
     }
 
 
@@ -83,6 +84,17 @@ def test_patient_dashboard_only_counts_own_records(dashboard_records):
     assert response.data["scope"] == "patient"
     assert response.data["total_patients"] == 1
     assert response.data["upcoming_appointments"] == 1
+    assert response.data["active_clinicians"] == 0
+    assert response.data["active_doctors"] == 0
+    assert response.data["active_nurses"] == 0
+    assert response.data["care_team"] == [
+        {
+            "public_id": str(Clinician.objects.get().public_id),
+            "display_name": "",
+            "profession": "doctor",
+            "specialty": "",
+        }
+    ]
 
 
 @pytest.mark.django_db

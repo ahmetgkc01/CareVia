@@ -62,6 +62,14 @@ const UserPage = lazy(() =>
 );
 
 const drawerWidth = 240;
+const roleTranslationKeys: Record<string, string> = {
+  Admin: "adminRole",
+  Doctor: "doctor",
+  Nurse: "nurse",
+  Secretary: "secretaryRole",
+  Patient: "patient",
+  Auditor: "auditorRole",
+};
 
 function PageLoader() {
   return (
@@ -73,15 +81,28 @@ function PageLoader() {
 
 function DashboardPage() {
   const { t, i18n } = useTranslation();
+  const session = useQuery({ queryKey: ["session"], queryFn: authApi.me });
   const summary = useQuery({ queryKey: ["dashboard-summary"], queryFn: dashboardApi.summary });
-  const release = useQuery({ queryKey: ["release-overview"], queryFn: dashboardApi.release });
+  const canViewReleaseHistory = Boolean(session.data?.is_superuser)
+    || (session.data?.groups.some((group) => ["Admin", "Auditor"].includes(group)) ?? false);
+  const release = useQuery({
+    queryKey: ["release-overview"],
+    queryFn: dashboardApi.release,
+    enabled: canViewReleaseHistory,
+  });
   const patientScope = summary.data?.scope === "patient";
-  const metrics = [
-    [patientScope ? t("myPatientProfile") : t("totalPatients"), summary.data?.total_patients],
-    [patientScope ? t("myUpcomingAppointments") : t("upcomingAppointments"), summary.data?.upcoming_appointments],
-    [t("activeDoctors"), summary.data?.active_doctors],
-    [t("activeNurses"), summary.data?.active_nurses],
-  ];
+  const metrics = patientScope
+    ? [
+        [t("myPatientProfile"), summary.data?.total_patients],
+        [t("myUpcomingAppointments"), summary.data?.upcoming_appointments],
+        [t("myCareTeam"), summary.data?.care_team.length],
+      ]
+    : [
+        [t("totalPatients"), summary.data?.total_patients],
+        [t("upcomingAppointments"), summary.data?.upcoming_appointments],
+        [t("activeDoctors"), summary.data?.active_doctors],
+        [t("activeNurses"), summary.data?.active_nurses],
+      ];
   return (
     <Stack spacing={3}>
       <Box>
@@ -100,7 +121,33 @@ function DashboardPage() {
           </Card>
         ))}
       </Box>
-      <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }}>
+      {patientScope && (
+        <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }}>
+          <Stack spacing={2}>
+            <Box>
+              <Typography variant="h6">{t("myCareTeam")}</Typography>
+              <Typography color="text.secondary">{t("myCareTeamDescription")}</Typography>
+            </Box>
+            {(summary.data?.care_team.length ?? 0) > 0 ? (
+              <Box display="grid" gridTemplateColumns={{ xs: "1fr", md: "repeat(2, 1fr)" }} gap={2}>
+                {summary.data?.care_team.map((clinician) => (
+                  <Card key={clinician.public_id} variant="outlined">
+                    <CardContent>
+                      <Typography fontWeight={700}>{clinician.display_name || t(clinician.profession)}</Typography>
+                      <Typography color="text.secondary">
+                        {t(clinician.profession)}{clinician.specialty ? ` · ${clinician.specialty}` : ""}
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                ))}
+              </Box>
+            ) : (
+              <Typography color="text.secondary">{t("noCareTeam")}</Typography>
+            )}
+          </Stack>
+        </Paper>
+      )}
+      {canViewReleaseHistory && <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 } }}>
         <Stack spacing={2.5}>
           <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" gap={2}>
             <Box>
@@ -169,7 +216,7 @@ function DashboardPage() {
             )}
           </Stack>
         </Stack>
-      </Paper>
+      </Paper>}
     </Stack>
   );
 }
@@ -180,20 +227,29 @@ function AppShell() {
   const queryClient = useQueryClient();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const session = useQuery({ queryKey: ["session"], queryFn: authApi.me });
+  const isSuperUser = session.data?.is_superuser ?? false;
+  const roleLabel = isSuperUser
+    ? t("superUser")
+    : (session.data?.groups ?? [])
+        .map((group) => t(roleTranslationKeys[group] ?? group))
+        .join(" · ");
   const health = useQuery({
     queryKey: ["health"],
     queryFn: dashboardApi.health,
     retry: false,
     staleTime: Infinity,
   });
-  const canViewUsers = session.data?.groups.some((group) => ["Admin", "Auditor"].includes(group));
-  const canUseAssistant = session.data?.groups.some((group) => ["Doctor", "Patient"].includes(group)) || session.data?.groups.includes("Admin");
+  const canViewUsers = isSuperUser || session.data?.groups.some((group) => ["Admin", "Auditor"].includes(group));
+  const canViewClinicians = isSuperUser || (session.data?.groups.some((group) =>
+    ["Admin", "Doctor", "Nurse", "Secretary", "Auditor"].includes(group),
+  ) ?? false);
+  const canUseAssistant = isSuperUser || session.data?.groups.some((group) => ["Doctor", "Patient"].includes(group)) || session.data?.groups.includes("Admin");
   const release = health.data?.release;
   const displayedRelease = release && release.length > 12 ? release.slice(0, 7) : release;
   const items = [
     [t("dashboard"), "/dashboard", <DashboardOutlined />],
     [t("patients"), "/patients", <PeopleAltOutlined />],
-    [t("clinicians"), "/clinicians", <MedicalServicesOutlined />],
+    ...(canViewClinicians ? [[t("clinicians"), "/clinicians", <MedicalServicesOutlined />] as const] : []),
     [t("appointments"), "/appointments", <CalendarMonthOutlined />],
     ...(canUseAssistant ? [[t("assistant"), "/assistant", <AutoAwesomeOutlined />] as const] : []),
     ...(canViewUsers ? [[t("users"), "/users", <GroupsOutlined />] as const] : []),
@@ -242,6 +298,19 @@ function AppShell() {
             <MenuOutlined />
           </IconButton>
           <Typography variant="h6" sx={{ flexGrow: 1 }}>{t("appName")}</Typography>
+          {roleLabel && (
+            <Chip
+              color="secondary"
+              label={roleLabel}
+              sx={{
+                mr: 1,
+                height: 38,
+                fontSize: "1rem",
+                fontWeight: 700,
+                "& .MuiChip-label": { px: 2 },
+              }}
+            />
+          )}
           <Button color="inherit" startIcon={<LanguageOutlined />} onClick={changeLanguage}>
             {i18n.resolvedLanguage === "tr" ? "EN" : "TR"}
           </Button>

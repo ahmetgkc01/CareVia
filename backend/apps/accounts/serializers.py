@@ -19,6 +19,7 @@ class CurrentUserSerializer(serializers.Serializer):
     email = serializers.EmailField(read_only=True)
     first_name = serializers.CharField(read_only=True)
     last_name = serializers.CharField(read_only=True)
+    is_superuser = serializers.BooleanField(read_only=True)
     groups = serializers.SerializerMethodField()
 
     def get_groups(self, user) -> list[str]:
@@ -48,6 +49,15 @@ class UserManagementSerializer(serializers.ModelSerializer):
             "password",
         )
         read_only_fields = ("id", "last_login", "date_joined")
+
+    def validate_groups(self, groups):
+        request = self.context.get("request")
+        assigning_admin = any(group.name == "Admin" for group in groups)
+        if assigning_admin and not (request and request.user.is_superuser):
+            raise serializers.ValidationError(
+                "Only a Super User can assign the Admin role."
+            )
+        return groups
 
     def create(self, validated_data):
         groups = validated_data.pop("groups", [])

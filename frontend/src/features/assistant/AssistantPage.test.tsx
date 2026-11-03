@@ -26,6 +26,7 @@ beforeEach(() => {
     email: "doctor@example.test",
     first_name: "Ada",
     last_name: "Example",
+    is_superuser: false,
     groups: ["Doctor"],
   });
   vi.spyOn(patientApi, "list").mockResolvedValue({

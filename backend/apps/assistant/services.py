@@ -1,8 +1,10 @@
 import json
 import re
 import unicodedata
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
+from decimal import Decimal
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -11,6 +13,7 @@ from django.utils import timezone
 
 from apps.appointments.models import Appointment
 from apps.assistant.embeddings import EmbeddingError, KnowledgeMatch, semantic_search
+from apps.assistant.models import AssistantMessage
 from apps.patients.models import Patient
 
 
@@ -20,6 +23,20 @@ class AssistantReply:
     category: str
     safety_code: str = ""
     sources: list[dict] = field(default_factory=list)
+    provider_model: str = ""
+    input_tokens: int = 0
+    output_tokens: int = 0
+    estimated_cost_usd: Decimal = Decimal("0")
+    fallback_used: bool = False
+
+
+@dataclass(frozen=True)
+class ProviderReply:
+    content: str
+    model: str
+    input_tokens: int = 0
+    output_tokens: int = 0
+    estimated_cost_usd: Decimal = Decimal("0")
 
 
 EMERGENCY_PATTERNS = (
@@ -64,6 +81,30 @@ MEDICAL_ADVICE_PATTERNS = (
     "change treatment",
     "nothing wrong",
     "am i okay",
+)
+
+FOLLOW_UP_PATTERNS = (
+    "peki",
+    "ya ",
+    "az once",
+    "onceki",
+    "bunu",
+    "onu",
+    "bunun",
+    "onun",
+    "bunlar",
+    "onlar",
+    "devam",
+    "aciklar",
+    "biraz daha",
+    "daha detay",
+    "ne demek",
+    "what about",
+    "and what",
+    "that ",
+    "those ",
+    "it ",
+    "more detail",
 )
 
 
@@ -388,13 +429,81 @@ def patient_context_text(patient: Patient | None, include_notes: bool) -> str:
     return "\n".join(fields)
 
 
+def is_follow_up(message: str) -> bool:
+    normalized = normalize(message).strip()
+    return any(
+        normalized == pattern.strip() or normalized.startswith(pattern)
+        for pattern in FOLLOW_UP_PATTERNS
+    )
+
+
+def latest_user_message(history: Sequence[AssistantMessage]) -> str:
+    for item in reversed(history):
+        if item.role == AssistantMessage.Role.USER and item.content.strip():
+            return item.content.strip()
+    return ""
+
+
+def contextual_query(message: str, history: Sequence[AssistantMessage]) -> str:
+    previous = latest_user_message(history)
+    if previous and is_follow_up(message):
+        return f"{previous}\nFollow-up: {message}"
+    return message
+
+
+def provider_input(
+    *,
+    message: str,
+    patient: Patient | None,
+    doctor: bool,
+    knowledge_matches: list[KnowledgeMatch],
+    history: Sequence[AssistantMessage],
+) -> list[dict[str, str]]:
+    history_limit = max(0, settings.ASSISTANT_HISTORY_MESSAGES)
+    char_limit = max(0, settings.ASSISTANT_HISTORY_MAX_CHARS)
+    selected: list[dict[str, str]] = []
+    used_chars = 0
+    for item in reversed(history[-history_limit:] if history_limit else []):
+        content = item.content.strip()
+        if not content:
+            continue
+        remaining = char_limit - used_chars
+        if remaining <= 0:
+            break
+        content = content[-remaining:]
+        selected.append({"role": item.role, "content": content})
+        used_chars += len(content)
+    selected.reverse()
+
+    knowledge_context = "\n\n".join(
+        f"[{match.chunk.source_key}] {match.chunk.content}" for match in knowledge_matches
+    ) or "No relevant approved knowledge document was found."
+    current_content = (
+        "Authorized Carevia patient context:\n"
+        f"{patient_context_text(patient, doctor)}\n\n"
+        "Approved Carevia knowledge context:\n"
+        f"{knowledge_context}\n\n"
+        f"Current user message:\n{message}"
+    )
+    return [*selected, {"role": "user", "content": current_content}]
+
+
+def estimate_generation_cost(input_tokens: int, output_tokens: int) -> Decimal:
+    input_cost = Decimal(str(settings.GENAI_INPUT_COST_PER_MILLION))
+    output_cost = Decimal(str(settings.GENAI_OUTPUT_COST_PER_MILLION))
+    return (
+        Decimal(input_tokens) * input_cost + Decimal(output_tokens) * output_cost
+    ) / Decimal(1_000_000)
+
+
 def provider_reply(
     message: str,
     language: str,
     patient: Patient | None,
     doctor: bool,
     knowledge_matches: list[KnowledgeMatch],
-) -> str | None:
+    history: Sequence[AssistantMessage] = (),
+) -> ProviderReply | None:
     if not (settings.GENAI_API_URL and settings.GENAI_API_KEY and settings.GENAI_MODEL):
         return None
     system_prompt = (
@@ -405,18 +514,15 @@ def provider_reply(
         "judgment. Keep the answer concise and use "
         + ("Turkish." if language == "tr" else "English.")
     )
-    knowledge_context = "\n\n".join(
-        f"[{match.chunk.source_key}] {match.chunk.content}" for match in knowledge_matches
-    ) or "No relevant approved knowledge document was found."
     payload = {
         "model": settings.GENAI_MODEL,
         "instructions": system_prompt,
-        "input": (
-            "Authorized Carevia patient context:\n"
-            f"{patient_context_text(patient, doctor)}\n\n"
-            "Approved Carevia knowledge context:\n"
-            f"{knowledge_context}\n\n"
-            f"User message:\n{message}"
+        "input": provider_input(
+            message=message,
+            patient=patient,
+            doctor=doctor,
+            knowledge_matches=knowledge_matches,
+            history=history,
         ),
         "max_output_tokens": 350,
         "store": False,
@@ -461,10 +567,25 @@ def provider_reply(
     )
     if has_any(normalized, unsafe_output_patterns) or re.search(r"\b\d+\s*(mg|ml)\b", normalized):
         return None
-    return content
+    usage = body.get("usage") or {}
+    input_tokens = int(usage.get("input_tokens") or 0)
+    output_tokens = int(usage.get("output_tokens") or 0)
+    return ProviderReply(
+        content=content,
+        model=str(body.get("model") or settings.GENAI_MODEL),
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        estimated_cost_usd=estimate_generation_cost(input_tokens, output_tokens),
+    )
 
 
-def create_reply(user, message: str, language: str, patient_id=None) -> AssistantReply:
+def create_reply(
+    user,
+    message: str,
+    language: str,
+    patient_id=None,
+    history: Sequence[AssistantMessage] = (),
+) -> AssistantReply:
     blocked = safety_reply(message, language)
     if blocked:
         return blocked
@@ -477,12 +598,19 @@ def create_reply(user, message: str, language: str, patient_id=None) -> Assistan
     allergy_words = ("alerji", "allerg")
     profile_words = ("profil", "bilgilerim", "my information", "profile")
     note_words = ("klinik not", "doktor not", "clinical note", "doctor note")
+    topic_words = appointment_words + allergy_words + profile_words + note_words
+    routing_message = contextual_query(message, history)
+    routing_normalized = (
+        normalize(routing_message)
+        if not has_any(normalized, topic_words) and routing_message != message
+        else normalized
+    )
 
-    if has_any(normalized, appointment_words):
+    if has_any(routing_normalized, appointment_words):
         if not patient:
             return missing_patient_reply(language, doctor)
         return format_appointments(patient, language)
-    if is_population_allergy_query(normalized):
+    if is_population_allergy_query(routing_normalized):
         if not doctor:
             return AssistantReply(
                 (
@@ -496,16 +624,16 @@ def create_reply(user, message: str, language: str, patient_id=None) -> Assistan
                 "authorization",
                 "population_query_restricted",
             )
-        return format_patients_with_allergies(user, normalized, language)
-    if has_any(normalized, allergy_words):
+        return format_patients_with_allergies(user, routing_normalized, language)
+    if has_any(routing_normalized, allergy_words):
         if not patient:
             return missing_patient_reply(language, doctor)
         return format_allergies(patient, language)
-    if has_any(normalized, profile_words):
+    if has_any(routing_normalized, profile_words):
         if not patient:
             return missing_patient_reply(language, doctor)
         return format_profile(patient, language)
-    if has_any(normalized, note_words):
+    if has_any(routing_normalized, note_words):
         if not doctor:
             content = (
                 "Dahili klinik notlar hasta hesabına gösterilmez. Sağlık durumunuzla ilgili "
@@ -522,11 +650,36 @@ def create_reply(user, message: str, language: str, patient_id=None) -> Assistan
         return format_clinical_notes(patient, language)
 
     try:
-        knowledge_matches = semantic_search(message)
+        knowledge_matches = semantic_search(contextual_query(message, history))
     except EmbeddingError:
         knowledge_matches = []
 
-    generated = provider_reply(message, language, patient, doctor, knowledge_matches)
+    if not knowledge_matches:
+        content = (
+            "Bu soruyu yanıtlamak için Carevia bilgi tabanında yeterli güvenilir bilgi "
+            "bulamadım. Lütfen sorunuzu farklı şekilde ifade edin veya yetkili bir sağlık "
+            "uzmanına danışın."
+            if language == "tr"
+            else (
+                "I could not find enough reliable information in the Carevia knowledge base "
+                "to answer this question. Please rephrase your question or consult a qualified "
+                "healthcare professional."
+            )
+        )
+        return AssistantReply(
+            content,
+            "knowledge",
+            "insufficient_knowledge",
+        )
+
+    generated = provider_reply(
+        message,
+        language,
+        patient,
+        doctor,
+        knowledge_matches,
+        history,
+    )
     if generated:
         sources = knowledge_sources(knowledge_matches)
         if patient:
@@ -538,7 +691,19 @@ def create_reply(user, message: str, language: str, patient_id=None) -> Assistan
                     language,
                 )
             )
-        return AssistantReply(generated, "generated", sources=sources)
+        return AssistantReply(
+            generated.content,
+            "generated",
+            sources=sources,
+            provider_model=generated.model,
+            input_tokens=generated.input_tokens,
+            output_tokens=generated.output_tokens,
+            estimated_cost_usd=generated.estimated_cost_usd,
+        )
+
+    provider_configured = bool(
+        settings.GENAI_API_URL and settings.GENAI_API_KEY and settings.GENAI_MODEL
+    )
 
     if knowledge_matches:
         heading = (
@@ -551,6 +716,7 @@ def create_reply(user, message: str, language: str, patient_id=None) -> Assistan
             f"{heading}\n\n{excerpts}",
             "knowledge",
             sources=knowledge_sources(knowledge_matches),
+            fallback_used=provider_configured,
         )
 
     if language == "tr":
@@ -565,7 +731,7 @@ def create_reply(user, message: str, language: str, patient_id=None) -> Assistan
             "using a doctor account, select a patient first. I cannot provide a diagnosis or "
             "recommend medication, dosage, or treatment changes."
         )
-    return AssistantReply(content, "help")
+    return AssistantReply(content, "help", fallback_used=provider_configured)
 
 
 def knowledge_sources(matches: list[KnowledgeMatch]) -> list[dict]:

@@ -7,6 +7,30 @@ sürümler [Semantic Versioning](https://semver.org/lang/tr/) ile etiketlenir.
 
 ## [Unreleased]
 
+### Eklendi
+
+- AI Asistan için kullanıcı ve seçili hasta bağlamına göre sınırlandırılmış takip konuşması desteği.
+- AI Asistan yanıtlarında model, token kullanımı, tahmini maliyet, gecikme ve yedek yanıt
+  kullanımını izlemeye yönelik yönetim görünürlüğü.
+- Hasta Genel Bakış ekranında kurum geneli sağlık çalışanı sayıları yerine randevularla ilişkili
+  sağlık çalışanlarını gösteren Bakım Ekibim bölümü.
+- Üst çubukta oturum açan kullanıcının rolünü veya Super User durumunu gösteren rozet.
+
+### Değiştirildi
+
+- AI Asistan, Carevia bilgi tabanında yeterli güvenilir içerik bulunmadığında yanıt üretmek yerine
+  kullanıcıyı bilgilendirip soruyu yeniden ifade etmeye veya bir sağlık uzmanına danışmaya
+  yönlendiriyor.
+- Hasta, sağlık çalışanı ve kullanıcı formlarında zorunlu alanlar ile yerelleştirilmiş doğrulama
+  mesajları görünür hale getirildi.
+
+### Güvenlik
+
+- Sağlık çalışanı dizini hasta hesaplarına kapatıldı; operasyonel sürüm geçmişi Admin, Auditor ve
+  Super User hesaplarıyla sınırlandırıldı.
+- Super User hesapları kullanıcı yönetiminden gizlendi; Admin rolünü atama veya kaldırma ve Admin
+  hesaplarını değiştirme işlemleri yalnızca Super User hesaplarıyla sınırlandırıldı.
+
 ## [0.1.0] - 2026-10-10
 
 ### Eklendi

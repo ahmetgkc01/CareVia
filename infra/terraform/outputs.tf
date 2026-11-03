@@ -26,7 +26,7 @@ output "database_master_username" {
 
 output "database_secret_arn" {
   description = "AWS Secrets Manager ARN containing the RDS master credentials."
-  value       = aws_db_instance.carevia.master_user_secret[0].secret_arn
+  value       = try(aws_db_instance.carevia.master_user_secret[0].secret_arn, null)
   sensitive   = true
 }
 

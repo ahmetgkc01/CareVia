@@ -33,11 +33,17 @@ import { authApi } from "../auth/api";
 import { Clinician, ClinicianInput, clinicianApi } from "./api";
 
 const clinicianSchema = z.object({
-  username: z.string().min(3),
-  first_name: z.string().min(1),
-  last_name: z.string().min(1),
-  email: z.email(),
-  password: z.string(),
+  username: z.string().trim()
+    .min(1, { message: "validationRequired" })
+    .min(3, { message: "validationUsernameMin" }),
+  first_name: z.string().trim().min(1, { message: "validationRequired" }),
+  last_name: z.string().trim().min(1, { message: "validationRequired" }),
+  email: z.string().trim()
+    .min(1, { message: "validationRequired" })
+    .pipe(z.email({ message: "validationEmail" })),
+  password: z.string().refine((value) => value.length === 0 || value.length >= 8, {
+    message: "validationPasswordMin",
+  }),
   profession: z.enum(["doctor", "nurse"]),
   specialty: z.string().max(120),
   country_code: z.string().max(2),
@@ -72,12 +78,12 @@ function ClinicianDialog({
     resolver: zodResolver(clinicianSchema),
     defaultValues: emptyClinician,
   });
+  const errorText = (message?: string) => (message ? t(message) : undefined);
   useEffect(() => {
     form.reset(clinician ? { ...clinician, password: "" } : emptyClinician);
   }, [clinician, form, open]);
   const mutation = useMutation({
     mutationFn: (values: ClinicianForm) => {
-      if (!clinician && values.password.length < 8) throw new Error("password-required");
       const { password, ...profile } = values;
       const payload: ClinicianInput = {
         ...profile,
@@ -95,28 +101,45 @@ function ClinicianDialog({
     },
   });
 
+  const submit = (values: ClinicianForm) => {
+    if (!clinician && !values.password) {
+      form.setError("password", { message: "validationPasswordMin" }, { shouldFocus: true });
+      return;
+    }
+    mutation.mutate(values);
+  };
+
+  const showCreatePasswordError = () => {
+    if (!clinician && !form.getValues("password")) {
+      form.setError("password", { message: "validationPasswordMin" }, { shouldFocus: false });
+    }
+  };
+
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <Box component="form" onSubmit={form.handleSubmit((values) => mutation.mutate(values))}>
+      <Box component="form" noValidate onSubmit={form.handleSubmit(submit, showCreatePasswordError)}>
         <DialogTitle>{clinician ? t("editClinician") : t("addClinician")}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} pt={1}>
-            <TextField label={t("username")} {...form.register("username")} />
+            <Typography variant="caption" color="text.secondary">{t("requiredFieldsHint")}</Typography>
+            <TextField required label={t("username")} error={Boolean(form.formState.errors.username)} helperText={errorText(form.formState.errors.username?.message)} {...form.register("username")} />
             <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-              <TextField fullWidth label={t("firstName")} {...form.register("first_name")} />
-              <TextField fullWidth label={t("lastName")} {...form.register("last_name")} />
+              <TextField required fullWidth label={t("firstName")} error={Boolean(form.formState.errors.first_name)} helperText={errorText(form.formState.errors.first_name?.message)} {...form.register("first_name")} />
+              <TextField required fullWidth label={t("lastName")} error={Boolean(form.formState.errors.last_name)} helperText={errorText(form.formState.errors.last_name?.message)} {...form.register("last_name")} />
             </Stack>
-            <TextField label={t("email")} type="email" {...form.register("email")} />
-            <TextField select label={t("profession")} defaultValue="doctor" {...form.register("profession")}>
+            <TextField required label={t("email")} type="email" error={Boolean(form.formState.errors.email)} helperText={errorText(form.formState.errors.email?.message)} {...form.register("email")} />
+            <TextField required select label={t("profession")} defaultValue="doctor" {...form.register("profession")}>
               <MenuItem value="doctor">{t("doctor")}</MenuItem>
               <MenuItem value="nurse">{t("nurse")}</MenuItem>
             </TextField>
             <TextField label={t("specialty")} {...form.register("specialty")} />
             <TextField label={t("countryCode")} inputProps={{ maxLength: 2 }} {...form.register("country_code")} />
             <TextField
+              required={!clinician}
               label={clinician ? t("newPasswordOptional") : t("password")}
               type="password"
-              helperText={!clinician ? t("minimumEightCharacters") : undefined}
+              error={Boolean(form.formState.errors.password)}
+              helperText={errorText(form.formState.errors.password?.message) ?? (!clinician ? t("minimumEightCharacters") : undefined)}
               {...form.register("password")}
             />
             <TextField select label={t("status")} defaultValue="true" {...form.register("is_active", { setValueAs: (value) => value === "true" })}>
@@ -145,7 +168,7 @@ export function ClinicianPage() {
     queryKey: ["clinicians", search],
     queryFn: () => clinicianApi.list(search),
   });
-  const canEdit = session.data?.groups.includes("Admin") ?? false;
+  const canEdit = session.data?.is_superuser || (session.data?.groups.includes("Admin") ?? false);
 
   return (
     <Stack spacing={3}>

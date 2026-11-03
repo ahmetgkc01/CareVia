@@ -1,6 +1,7 @@
 import pytest
 from django.contrib.auth.models import Group
 from django.core.management import call_command
+from django.test import override_settings
 
 from apps.accounts.management.commands.seed_demo import ROLE_NAME_OFFSETS, generated_name
 from apps.accounts.models import User
@@ -72,6 +73,20 @@ def test_seed_demo_is_idempotent_for_the_same_counts():
     assert Patient.objects.count() == 3
     assert Clinician.objects.count() == 2
     assert Appointment.objects.count() == 4
+
+
+@pytest.mark.django_db
+@override_settings(DEBUG=True)
+def test_seed_e2e_assigns_a_care_team_without_duplicates():
+    call_command("seed_e2e", password="test-password")
+    call_command("seed_e2e", password="test-password")
+
+    patient = Patient.objects.get(user__username="e2e_patient")
+    appointments = Appointment.objects.filter(patient=patient)
+
+    assert appointments.count() == 1
+    assert appointments.get().clinician.user.username == "e2e_doctor"
+    assert User.objects.get(username="e2e_admin").is_superuser
 
 
 @pytest.mark.django_db

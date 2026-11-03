@@ -1,5 +1,7 @@
 import json
 from datetime import timedelta
+from decimal import Decimal
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -13,7 +15,7 @@ from apps.accounts.models import User
 from apps.appointments.models import Appointment
 from apps.assistant.embeddings import KnowledgeMatch
 from apps.assistant.models import AssistantMessage, KnowledgeChunk
-from apps.assistant.services import create_reply, provider_reply
+from apps.assistant.services import AssistantReply, create_reply, provider_reply
 from apps.assistant.throttles import AssistantRateThrottle
 from apps.clinicians.models import Clinician
 from apps.patients.models import Allergy, Patient
@@ -265,6 +267,8 @@ class FakeResponse:
     def read(self):
         return json.dumps(
             {
+                "model": "test-model",
+                "usage": {"input_tokens": 120, "output_tokens": 30},
                 "output": [
                     {
                         "type": "message",
@@ -279,16 +283,98 @@ class FakeResponse:
     GENAI_API_URL="https://api.openai.com/v1/responses",
     GENAI_API_KEY="test-key",
     GENAI_MODEL="test-model",
+    GENAI_INPUT_COST_PER_MILLION=2,
+    GENAI_OUTPUT_COST_PER_MILLION=4,
 )
 def test_provider_uses_responses_api_shape():
+    history = [
+        SimpleNamespace(role="user", content="What does Carevia store?"),
+        SimpleNamespace(role="assistant", content="Approved Carevia records."),
+    ]
     with patch("apps.assistant.services.urlopen", return_value=FakeResponse()) as mocked_urlopen:
-        result = provider_reply("What can Carevia do?", "en", None, False, [])
+        result = provider_reply(
+            "What can Carevia do?",
+            "en",
+            None,
+            False,
+            [],
+            history,
+        )
 
-    assert result == "Safe response"
+    assert result.content == "Safe response"
+    assert result.input_tokens == 120
+    assert result.output_tokens == 30
+    assert result.estimated_cost_usd == Decimal("0.00036")
     payload = json.loads(mocked_urlopen.call_args.args[0].data)
     assert payload["store"] is False
-    assert payload["input"].endswith("User message:\nWhat can Carevia do?")
+    assert payload["input"][:2] == [
+        {"role": "user", "content": "What does Carevia store?"},
+        {"role": "assistant", "content": "Approved Carevia records."},
+    ]
+    assert payload["input"][-1]["content"].endswith(
+        "Current user message:\nWhat can Carevia do?"
+    )
     assert "messages" not in payload
+
+
+@pytest.mark.django_db
+def test_follow_up_uses_recent_history_for_deterministic_routing(assistant_records):
+    _, patient_user, _, _ = assistant_records
+    client = APIClient()
+    client.force_authenticate(patient_user)
+
+    first = client.post(
+        "/api/assistant/messages/",
+        {"message": "Alerjilerim neler?", "language": "tr"},
+        format="json",
+    )
+    second = client.post(
+        "/api/assistant/messages/",
+        {"message": "Peki reaksiyonu?", "language": "tr"},
+        format="json",
+    )
+
+    assert first.status_code == 201
+    assert second.status_code == 201
+    assert second.data["category"] == "allergies"
+    assert "Synthetic pollen allergy" in second.data["content"]
+
+
+@pytest.mark.django_db
+def test_doctor_history_is_scoped_to_selected_patient(assistant_records):
+    doctor_user, _, patient, other_patient = assistant_records
+    AssistantMessage.objects.create(
+        user=doctor_user,
+        patient=patient,
+        role="user",
+        content="first patient private context",
+    )
+    other_history = AssistantMessage.objects.create(
+        user=doctor_user,
+        patient=other_patient,
+        role="user",
+        content="other patient context",
+    )
+    client = APIClient()
+    client.force_authenticate(doctor_user)
+
+    with patch(
+        "apps.assistant.views.create_reply",
+        return_value=AssistantReply("reply", "generated"),
+    ) as mocked_create_reply:
+        response = client.post(
+            "/api/assistant/messages/",
+            {
+                "message": "Peki bunun detayı?",
+                "language": "tr",
+                "patient_id": str(other_patient.public_id),
+            },
+            format="json",
+        )
+
+    assert response.status_code == 201
+    history = mocked_create_reply.call_args.args[4]
+    assert [item.id for item in history] == [other_history.id]
 
 
 @pytest.mark.django_db
@@ -313,3 +399,20 @@ def test_knowledge_fallback_returns_sources():
     assert "approved synthetic records" in reply.content
     assert reply.sources[0]["source_key"] == "carevia-scope"
     assert reply.sources[0]["distance"] == 0.12
+
+
+@pytest.mark.django_db
+def test_missing_knowledge_does_not_call_provider():
+    user = user_with_group("no-knowledge-patient", "Patient")
+
+    with (
+        patch("apps.assistant.services.semantic_search", return_value=[]),
+        patch("apps.assistant.services.provider_reply") as mocked_provider,
+    ):
+        reply = create_reply(user, "Carevia bu konuda ne söylüyor?", "tr")
+
+    mocked_provider.assert_not_called()
+    assert reply.category == "knowledge"
+    assert reply.safety_code == "insufficient_knowledge"
+    assert "yeterli güvenilir bilgi bulamadım" in reply.content
+    assert reply.sources == []

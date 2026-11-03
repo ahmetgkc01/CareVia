@@ -1,8 +1,13 @@
+from datetime import timedelta
+
 from django.conf import settings
 from django.contrib.auth.models import Group
 from django.core.management.base import BaseCommand, CommandError
+from django.utils import timezone
 
 from apps.accounts.models import User
+from apps.appointments.models import Appointment
+from apps.clinicians.models import Clinician
 from apps.patients.models import Allergy, Patient
 
 
@@ -31,6 +36,9 @@ class Command(BaseCommand):
             options["password"],
         )
         admin.groups.set([admin_group])
+        admin.is_staff = True
+        admin.is_superuser = True
+        admin.save(update_fields=("is_staff", "is_superuser"))
         doctor.groups.set([doctor_group])
         patient.groups.set([patient_group])
         patient_record, _ = Patient.objects.update_or_create(
@@ -49,6 +57,26 @@ class Command(BaseCommand):
             defaults={
                 "reaction": "Synthetic E2E sneezing",
                 "severity": Allergy.Severity.MILD,
+            },
+        )
+        clinician, _ = Clinician.objects.update_or_create(
+            user=doctor,
+            defaults={
+                "profession": Clinician.Profession.DOCTOR,
+                "specialty": "Aile Hekimliği",
+                "is_active": True,
+            },
+        )
+        start_at = timezone.now() + timedelta(days=1)
+        Appointment.objects.update_or_create(
+            patient=patient_record,
+            clinician=clinician,
+            reason="Synthetic E2E follow-up",
+            defaults={
+                "start_at": start_at,
+                "end_at": start_at + timedelta(minutes=30),
+                "status": Appointment.Status.CONFIRMED,
+                "created_by": admin,
             },
         )
         self.stdout.write(self.style.SUCCESS("Synthetic E2E accounts are ready."))

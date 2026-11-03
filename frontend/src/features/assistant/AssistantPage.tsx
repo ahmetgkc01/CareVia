@@ -37,7 +37,7 @@ export function AssistantPage() {
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
   const session = useQuery({ queryKey: ["session"], queryFn: authApi.me });
   const groups = session.data?.groups ?? [];
-  const isDoctor = groups.includes("Doctor") || groups.includes("Admin");
+  const isDoctor = Boolean(session.data?.is_superuser) || groups.includes("Doctor") || groups.includes("Admin");
   const canUseAssistant = isDoctor || groups.includes("Patient");
   const history = useQuery({
     queryKey: ["assistant-history"],

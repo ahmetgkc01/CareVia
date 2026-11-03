@@ -6,6 +6,7 @@ export type CurrentUser = {
   email: string;
   first_name: string;
   last_name: string;
+  is_superuser: boolean;
   groups: string[];
 };
 
